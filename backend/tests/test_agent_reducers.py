@@ -1,0 +1,435 @@
+"""Tests de los reducers deterministas del agente.
+
+TODOS los fixtures usan valores FICTICIOS (empresas "Ejemplo S.A.S.", NITs
+9000000xx, contract_ids inventados con formato real CO1.PCCNTR.9990xx).
+PROHIBIDO copiar datos reales aquí. Sin red.
+
+Los builders de payloads replican la FORMA verificada de las respuestas de
+Croma (docs/croma-schema.md) y se reutilizan desde test_agent_loop.py.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from agent.reducers import (
+    filter_candidates,
+    reduce_contracts_by_provider,
+    reduce_disciplinary_records,
+    reduce_entities_by_name,
+    reduce_entity_by_nit,
+    reduce_fiscal_records,
+    reduce_processes_by_entity,
+    reduce_tool_result,
+)
+from evidence.models import DerivedEvidence
+from evidence.verify import verify_derived
+
+# --- Builders de payloads con forma real y valores ficticios ---
+
+NIT_EJEMPLO = "900000011"
+NIT_EJEMPLO_2 = "900000022"
+CC_REP_LEGAL = "10000001"  # cédula ficticia del representante legal
+
+
+def make_contract(
+    contract_id: str,
+    entity: str,
+    entity_nit: str,
+    value: float,
+    sign_date: str | None,
+    obj: str = "Suministro de servicios de ejemplo para pruebas",
+) -> dict[str, Any]:
+    return {
+        "contract_id": contract_id,
+        "reference": f"REF-{contract_id[-6:]}",
+        "entity": entity,
+        "entity_nit": entity_nit,
+        "provider": "Empresa Ejemplo S.A.S.",
+        "provider_document": NIT_EJEMPLO,
+        "provider_document_type": "NIT",
+        "legal_rep_name": "Persona Ejemplo Uno",
+        "legal_rep_document": None,
+        "status": "Ejecutado",
+        "contract_type": "Suministro",
+        "modality": "Contratación directa",
+        "object": obj,
+        "value": value,
+        "invoiced_value": value,
+        "paid_value": value,
+        "sign_date": sign_date,
+        "start_date": sign_date,
+        "end_date": None,
+        "duration": None,
+        "supervisor": None,
+        "funding_origin": "Recursos propios",
+        "sector": "Ejemplo",
+        "url": f"https://secop.example/proceso/{contract_id}",
+    }
+
+
+def contracts_payload(capped: bool = False) -> dict[str, Any]:
+    """5 contratos ficticios: 3 con Entidad Uno (60%), 2 con Entidad Dos."""
+    contracts = [
+        make_contract("CO1.PCCNTR.999001", "Entidad Ficticia Uno", "800000001",
+                      100_000_000.0, "2023-01-15"),
+        make_contract("CO1.PCCNTR.999002", "Entidad Ficticia Uno", "800000001",
+                      200_000_000.0, "2024-03-01"),
+        make_contract("CO1.PCCNTR.999003", "Entidad Ficticia Uno", "800000001",
+                      300_000_000.0, "2025-06-30"),
+        make_contract("CO1.PCCNTR.999004", "Entidad Ficticia Dos", "800000002",
+                      50_000_000.0, "2022-05-10"),
+        make_contract("CO1.PCCNTR.999005", "Entidad Ficticia Dos", "800000002",
+                      50_000_000.0, "2023-11-20"),
+    ]
+    total = 855 if capped else len(contracts)
+    return {
+        "data": {
+            "document_number": NIT_EJEMPLO,
+            "entity_nit": None,
+            "from_date": None,
+            "to_date": None,
+            "count": len(contracts),
+            "capped": capped,
+            "contracts": contracts,
+            "pagination": {"total": total, "page_size": 500,
+                           "total_pages": 2 if capped else 1, "page": 1},
+        }
+    }
+
+
+def rues_by_nit_payload(found: bool = True) -> dict[str, Any]:
+    if not found:
+        return {"data": {"found": False, "document_number": "900000099"}}
+    return {
+        "data": {
+            "found": True,
+            "document_number": NIT_EJEMPLO,
+            "entity": {
+                "registry_id": "999999",
+                "nit": NIT_EJEMPLO,
+                "verification_digit": "7",
+                "secondary_identification": f"0000{NIT_EJEMPLO}0",
+                "name": "Empresa Ejemplo S.A.S.",
+                "chamber_code": "01",
+                "chamber_name": "CAMARA DE COMERCIO DE EJEMPLO",
+                "registration_number": "01234567",
+                "registration_status": "ACTIVA",
+                "legal_organization": "SOCIEDAD POR ACCIONES SIMPLIFICADA",
+                "society_type": "SOCIEDAD COMERCIAL",
+                "registration_date": "2015-02-20",
+                "last_renewal_date": "2026-03-15",
+                "last_renewed_year": "2026",
+                "cancellation_date": None,
+                "primary_activity": {
+                    "code": "4290",
+                    "description": "Construcción de otras obras de ingeniería civil",
+                },
+                "certificates_sale_url": "https://rues.example/certificados",
+            },
+            "financials": [{"year": "2025", "total_assets": 1_000_000}],
+            "renewals": [{"year": "2026", "renewal_date": "2026-03-15"}],
+            "related_parties": [
+                {
+                    "document_number": CC_REP_LEGAL,
+                    "name": "Persona Ejemplo Uno",
+                    "role": "Representante Legal - Principal",
+                },
+                {
+                    "document_number": "10000002",
+                    "name": "Persona Ejemplo Dos",
+                    "role": "Suplente del Representante Legal",
+                },
+            ],
+            "notices": [],
+        }
+    }
+
+
+def entities_by_name_payload(n: int = 2) -> dict[str, Any]:
+    names = ["Empresa Ejemplo S.A.S.", "Ejemplo del Caribe S.A.S.", "Ejemplo Andino Ltda."]
+    nits = [NIT_EJEMPLO, NIT_EJEMPLO_2, "900000033"]
+    entities = []
+    for i in range(n):
+        entities.append(
+            {
+                "registry_id": f"88880{i}",
+                "nit": None,
+                "verification_digit": None,
+                "name": names[i],
+                "chamber_code": "01",
+                "chamber_name": "CAMARA DE COMERCIO DE EJEMPLO",
+                "registration_number": f"0200000{i}",
+                "registration_status": "ACTIVA" if i == 0 else "CANCELADA",
+                "legal_organization": "SOCIEDAD POR ACCIONES SIMPLIFICADA",
+                "last_renewed_year": "2026",
+                "category": "SOCIEDAD",
+                "detail": {
+                    "registry_id": f"88880{i}",
+                    "nit": nits[i],
+                    "secondary_identification": f"0000{nits[i]}0",
+                    "name": names[i],
+                },
+            }
+        )
+    return {
+        "data": {
+            "query": "ejemplo",
+            "capped": False,
+            "entities": entities,
+            "pagination": {"total": n, "page_size": 10, "total_pages": 1, "page": 1},
+        }
+    }
+
+
+def procuraduria_payload(document_type: str = "NIT") -> dict[str, Any]:
+    return {
+        "data": {
+            "found": True,
+            "document_type": document_type,
+            "document_type_label": "Nit" if document_type == "NIT" else "Cédula de Ciudadanía",
+            "document_number": NIT_EJEMPLO if document_type == "NIT" else CC_REP_LEGAL,
+            "full_name": None,
+            "has_records": False,
+            "status": "SIN ANTECEDENTES (ficticio)",
+            "message": "El documento consultado no registra antecedentes (dato de prueba).",
+            "records": [],
+            "checked_at": None,
+        }
+    }
+
+
+def contraloria_payload() -> dict[str, Any]:
+    return {
+        "data": {
+            "found": True,
+            "document_type": "CC",
+            "document_type_label": "Cédula de Ciudadanía",
+            "document_number": CC_REP_LEGAL,
+            "is_fiscal_responsible": False,
+            "verification_code": "FICT-0000001",
+            "certified_at": "2026-08-14T00:00:00Z",
+            "status": "NO REPORTADO (ficticio)",
+            "message": "Certificado de prueba con datos ficticios.",
+        }
+    }
+
+
+def processes_payload() -> dict[str, Any]:
+    return {
+        "data": {
+            "document_number": "800000001",
+            "from_date": None,
+            "to_date": None,
+            "count": 2,
+            "capped": False,
+            "processes": [
+                {
+                    "notice_uid": "NU-0001",
+                    "process_id": "PE-0001",
+                    "reference": "LP-001",
+                    "name": "Proceso ficticio de obra menor",
+                    "entity": "Entidad Ficticia Uno",
+                    "entity_nit": "800000001",
+                    "modality": "Licitación pública",
+                    "contract_type": "Obra",
+                    "base_price": 900_000_000.0,
+                    "phase": "Adjudicado",
+                    "procedure_status": "Cerrado",
+                    "published_date": "2025-01-01",
+                    "url": "https://secop.example/proceso/PE-0001",
+                },
+                {
+                    "notice_uid": "NU-0002",
+                    "process_id": "PE-0002",
+                    "reference": "LP-002",
+                    "name": "Proceso ficticio de suministro",
+                    "entity": "Entidad Ficticia Uno",
+                    "entity_nit": "800000001",
+                    "modality": "Selección abreviada",
+                    "contract_type": "Suministro",
+                    "base_price": 100_000_000.0,
+                    "phase": "Publicado",
+                    "procedure_status": "Abierto",
+                    "published_date": "2026-02-02",
+                    "url": "https://secop.example/proceso/PE-0002",
+                },
+            ],
+            "pagination": {"total": 2, "page_size": 500, "total_pages": 1, "page": 1},
+        }
+    }
+
+
+# --- SECOP contratos: agregados en código ---
+
+
+def test_contracts_reducer_aggregates_by_entity():
+    reduction = reduce_contracts_by_provider(
+        contracts_payload(), {"document_number": NIT_EJEMPLO}
+    )
+    summary = reduction.summary
+    assert summary["contratos_recuperados"] == 5
+    assert summary["total_reportado"] == 5
+    assert summary["capped"] is False
+    assert summary["rango_fechas"] == {"desde": "2022-05-10", "hasta": "2025-06-30"}
+
+    top = summary["entidades"][0]
+    assert top["entidad"] == "Entidad Ficticia Uno"
+    assert top["contratos"] == 3
+    assert top["valor_total"] == 600_000_000.0
+    assert top["pct_contratos"] == 60.0
+    assert summary["entidades"][1]["contratos"] == 2
+
+    # top-5 por valor: el mayor primero, con objeto truncado y url.
+    top_contract = summary["top_contratos"][0]
+    assert top_contract["contract_id"] == "CO1.PCCNTR.999003"
+    assert top_contract["valor"] == 300_000_000.0
+    assert top_contract["url"].startswith("https://secop.example/")
+
+    # Los 5 contract_ids reales quedan disponibles para refs.
+    assert len(reduction.contract_ids) == 5
+    # Entidades contratantes descubiertas (para profundidad).
+    assert {d.document for d in reduction.discovered} == {"800000001", "800000002"}
+
+
+def test_contracts_reducer_calculation_steps_pass_verify_derived():
+    """Toda inferencia numérica nace en código: cada derived debe recomputar."""
+    reduction = reduce_contracts_by_provider(
+        contracts_payload(), {"document_number": NIT_EJEMPLO}
+    )
+    assert len(reduction.derived) == 3  # pct contratos, suma valor, pct valor
+    for proposal in reduction.derived:
+        evidence = DerivedEvidence(
+            claim=proposal.claim,
+            calculation=proposal.calculation,
+            calculation_steps=list(proposal.steps),
+            sources=["croma:secop:contracts-by-provider:1"],
+        )
+        result = verify_derived(evidence)
+        assert result.valid, f"{proposal.claim}: {result.errors}"
+
+    pct = reduction.derived[0]
+    assert pct.steps[-1].output == 60.0
+    share = reduction.derived[2]
+    assert share.steps[-1].output == 85.7  # 600M / 700M * 100 redondeado
+
+
+def test_contracts_reducer_capped_sample_is_declared():
+    reduction = reduce_contracts_by_provider(
+        contracts_payload(capped=True), {"document_number": NIT_EJEMPLO}
+    )
+    assert reduction.summary["capped"] is True
+    assert reduction.summary["total_reportado"] == 855
+    assert "capada" in reduction.summary["nota"]
+    assert all("muestra capada" in p.claim for p in reduction.derived)
+
+
+def test_contracts_reducer_empty_payload():
+    payload = {"data": {"document_number": NIT_EJEMPLO, "count": 0, "capped": False,
+                        "contracts": [], "pagination": {"total": 0}}}
+    reduction = reduce_contracts_by_provider(payload, {"document_number": NIT_EJEMPLO})
+    assert reduction.summary["contratos_recuperados"] == 0
+    assert reduction.summary["entidades"] == []
+    assert reduction.summary["rango_fechas"] is None
+    assert reduction.derived == []
+    assert len(reduction.direct) == 1  # el conteo literal sí es evidencia directa
+
+
+# --- RUES ---
+
+
+def test_rues_by_nit_reducer_identity_and_related_parties():
+    reduction = reduce_entity_by_nit(rues_by_nit_payload(), {"document_number": NIT_EJEMPLO})
+    identity = reduction.summary["identidad"]
+    assert identity["nombre"] == "Empresa Ejemplo S.A.S."
+    assert identity["estado_matricula"] == "ACTIVA"
+    assert len(reduction.summary["related_parties"]) == 2
+
+    claims = [p.claim for p in reduction.direct]
+    assert any("matrícula ACTIVA" in c for c in claims)
+    assert any("Representante Legal - Principal" in c for c in claims)
+    # El puente empresa -> persona queda descubierto para la cadena.
+    assert {d.document for d in reduction.discovered} == {CC_REP_LEGAL, "10000002"}
+
+
+def test_rues_by_nit_reducer_not_found_is_normal():
+    reduction = reduce_entity_by_nit(
+        rues_by_nit_payload(found=False), {"document_number": "900000099"}
+    )
+    assert reduction.summary["found"] is False
+    assert len(reduction.direct) == 1
+    assert "found=false" in reduction.direct[0].claim
+    assert reduction.discovered == []
+
+
+def test_entities_by_name_reducer_builds_candidates():
+    reduction = reduce_entities_by_name(entities_by_name_payload(2), {"name": "ejemplo"})
+    assert reduction.candidates is not None
+    assert [c.id for c in reduction.candidates] == [
+        f"co:nit:{NIT_EJEMPLO}",
+        f"co:nit:{NIT_EJEMPLO_2}",
+    ]
+    assert "ACTIVA" in reduction.candidates[0].detail
+    assert "CANCELADA" in reduction.candidates[1].detail
+    # Con >1 candidato el reducer NO propone evidencia: el loop pausará.
+    assert reduction.direct == []
+
+
+def test_entities_by_name_reducer_single_candidate_proceeds():
+    reduction = reduce_entities_by_name(entities_by_name_payload(1), {"name": "ejemplo"})
+    assert len(reduction.candidates) == 1
+    assert len(reduction.direct) == 1
+    assert "única entidad" in reduction.direct[0].claim
+    assert reduction.discovered[0].document == NIT_EJEMPLO
+
+
+def test_filter_candidates_selects_and_rejects():
+    reduction = reduce_entities_by_name(entities_by_name_payload(2), {"name": "ejemplo"})
+    chosen = filter_candidates(reduction, f"co:nit:{NIT_EJEMPLO_2}")
+    assert chosen is not None
+    assert [c.id for c in chosen.candidates] == [f"co:nit:{NIT_EJEMPLO_2}"]
+    assert "seleccionó" in chosen.direct[0].claim
+    # También acepta el NIT pelado.
+    assert filter_candidates(reduction, NIT_EJEMPLO) is not None
+    # Y devuelve None si nada coincide (el loop volverá a pausar).
+    assert filter_candidates(reduction, "co:nit:999999999") is None
+
+
+# --- Procuraduría / Contraloría / procesos ---
+
+
+def test_disciplinary_reducer_reports_literal_status():
+    reduction = reduce_disciplinary_records(
+        procuraduria_payload("NIT"), {"document_number": NIT_EJEMPLO, "document_type": "NIT"}
+    )
+    assert reduction.summary["has_records"] is False
+    assert "SIN ANTECEDENTES" in reduction.direct[0].claim
+    assert "has_records=False" in reduction.direct[0].claim
+
+
+def test_fiscal_reducer_includes_verification_code():
+    reduction = reduce_fiscal_records(contraloria_payload(), {"document_number": CC_REP_LEGAL})
+    assert reduction.summary["is_fiscal_responsible"] is False
+    assert reduction.summary["verification_code"] == "FICT-0000001"
+    assert "FICT-0000001" in reduction.direct[0].claim
+
+
+def test_processes_reducer_warns_no_awardee():
+    reduction = reduce_processes_by_entity(processes_payload(), {"document_number": "800000001"})
+    assert "NO traen adjudicatario" in reduction.summary["nota"]
+    top = reduction.summary["top_procesos_por_valor"]
+    assert top[0]["base_price"] == 900_000_000.0
+    assert reduction.derived == []
+
+
+def test_reduce_tool_result_dispatch_and_unknown_tool():
+    reduction = reduce_tool_result(
+        "secop_contracts_by_provider", contracts_payload(), {"document_number": NIT_EJEMPLO}
+    )
+    assert reduction.summary["fuente"] == "secop:contracts-by-provider"
+    try:
+        reduce_tool_result("tool_inexistente", {}, {})
+    except KeyError as exc:
+        assert "tool_inexistente" in str(exc)
+    else:
+        raise AssertionError("esperaba KeyError para tool sin reducer")
