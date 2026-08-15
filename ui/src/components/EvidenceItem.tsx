@@ -1,4 +1,6 @@
 import type { CalculationStep, Evidence } from "../types/caseFile";
+import { plainCalculation } from "../lib/plainLanguage";
+import { SourceRef } from "./SourceRef";
 
 interface EvidenceItemProps {
   evidence: Evidence;
@@ -19,6 +21,7 @@ function formatStep(step: CalculationStep, index: number): string {
  * - derived → badge "INFERENCIA" + visible calculation chain + expandable sources.
  */
 export function EvidenceItem({ evidence }: EvidenceItemProps) {
+  const plainCalc = evidence.type === "derived" ? plainCalculation(evidence) : null;
   return (
     <li className={`evidence evidence-${evidence.type}`}>
       <div className="evidence-head">
@@ -38,7 +41,7 @@ export function EvidenceItem({ evidence }: EvidenceItemProps) {
         <div className="evidence-body">
           <p className="evidence-source">
             <span className="evidence-field-label">Fuente:</span>{" "}
-            <code>{evidence.source}</code>
+            <SourceRef id={evidence.source} />
           </p>
           <p className="evidence-raw">
             <span className="evidence-field-label">Referencia:</span>{" "}
@@ -49,6 +52,7 @@ export function EvidenceItem({ evidence }: EvidenceItemProps) {
         <div className="evidence-body">
           <p className="evidence-field-label">Cálculo:</p>
           <pre className="calculation">{evidence.calculation}</pre>
+          {plainCalc && <p className="plain-calc">{plainCalc}</p>}
           {evidence.calculation_steps && evidence.calculation_steps.length > 0 && (
             <details className="calculation-steps">
               <summary>Pasos del cálculo ({evidence.calculation_steps.length})</summary>
@@ -66,7 +70,7 @@ export function EvidenceItem({ evidence }: EvidenceItemProps) {
             <ul>
               {evidence.sources.map((source) => (
                 <li key={source}>
-                  <code>{source}</code>
+                  <SourceRef id={source} />
                 </li>
               ))}
             </ul>

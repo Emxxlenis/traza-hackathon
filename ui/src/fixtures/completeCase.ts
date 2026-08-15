@@ -35,6 +35,12 @@ export const completeCase: CaseFile = {
             "El 70,6 % de los contratos de Empresa Ejemplo S.A.S. provienen de la Entidad Ficticia de Ejemplo",
           type: "derived",
           calculation: "12 contratos con ENT-001 / 17 contratos totales = 0,706 → 70,6 %",
+          // Percentage-by-count chain, exactly as the backend reducers emit it.
+          calculation_steps: [
+            { operation: "divide", inputs: [12, 17], output: 0.7058823529411765 },
+            { operation: "multiply", inputs: ["$0", 100], output: 70.58823529411765 },
+            { operation: "round", inputs: ["$1", 1], output: 70.6 },
+          ],
           sources: [
             "croma:secop:contract:FIC-2023-0101",
             "croma:secop:contract:FIC-2023-0145",
@@ -61,6 +67,14 @@ export const completeCase: CaseFile = {
           type: "derived",
           calculation:
             "($2.140M en 2024 − $890M en 2023) / $890M = 1,404 → +140,4 %",
+          // Growth calculation: NOT one of the two reducer share patterns
+          // (percentage chain / sum chain) — the UI shows the raw steps but
+          // adds no plain-language translation for it.
+          calculation_steps: [
+            { operation: "subtract", inputs: [2140000000, 890000000], output: 1250000000 },
+            { operation: "divide", inputs: ["$0", 890000000], output: 1.404494382022472 },
+            { operation: "multiply", inputs: ["$1", 100], output: 140.4494382022472 },
+          ],
           sources: [
             "croma:secop:contract:FIC-2023-0101",
             "croma:secop:contract:FIC-2024-0012",

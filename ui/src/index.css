@@ -315,6 +315,38 @@ button {
   font-size: 0.9rem;
 }
 
+/* Collapsible legend: how to read the case file */
+.legend {
+  margin: 0.9rem 0 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.legend summary {
+  cursor: pointer;
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.legend p {
+  margin: 0.6rem 0 0.25rem;
+}
+
+/* Plain-language summary: highlighted but sober — no alert colors */
+.plain-summary {
+  font-size: 1.08rem;
+  line-height: 1.55;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 10px 10px 0;
+  padding: 0.85rem 1.1rem;
+  margin: 1rem 0 0;
+}
+
 .case-section {
   margin-top: 1.75rem;
 }
@@ -381,6 +413,18 @@ button {
 .source-meta {
   color: var(--ink-soft);
   font-size: 0.8rem;
+}
+
+/* Readable source names: label first, technical id secondary (never dropped) */
+.source-label {
+  font-weight: 500;
+}
+
+.source-technical {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  word-break: break-all;
 }
 
 /* Findings: expandable hierarchical list */
@@ -518,6 +562,13 @@ button {
   margin: 0.25rem 0 0.5rem;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Plain-language companion line inside the calculation block */
+.plain-calc {
+  margin: 0.1rem 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--ink);
 }
 
 .calculation-steps {

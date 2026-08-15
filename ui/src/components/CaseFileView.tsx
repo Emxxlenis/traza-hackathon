@@ -1,5 +1,7 @@
 import type { CaseFile } from "../types/caseFile";
+import { plainSummary } from "../lib/plainLanguage";
 import { EvidenceItem } from "./EvidenceItem";
+import { SourceRef } from "./SourceRef";
 
 interface CaseFileViewProps {
   caseFile: CaseFile;
@@ -14,6 +16,7 @@ function formatTimestamp(iso: string): string {
 
 /** Screen (c): the expediente. Findings as an expandable hierarchical list; unknowns and next steps always visible. */
 export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps) {
+  const summary = plainSummary(caseFile);
   return (
     <article className="case-file">
       <header className="case-header">
@@ -26,6 +29,19 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
           </p>
         )}
       </header>
+
+      <details className="legend">
+        <summary>¿Cómo leer este expediente?</summary>
+        <p>
+          <strong>HECHO</strong> es algo que una fuente oficial dice literalmente (siempre con la
+          fuente citada). <strong>INFERENCIA</strong> es un dato calculado a partir de esas fuentes
+          — el cálculo completo está visible y puede verificarse.{" "}
+          <strong>Qué no sabemos</strong> enumera lo que la evidencia no permite concluir: TRAZA
+          muestra evidencia, no emite veredictos.
+        </p>
+      </details>
+
+      {summary && <p className="plain-summary">{summary}</p>}
 
       <section className="case-section">
         <h3 className="section-title">Entidades</h3>
@@ -50,7 +66,7 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
         <ul className="source-list">
           {caseFile.sources_consulted.map((s) => (
             <li key={`${s.source}-${s.at}`} className="source-row">
-              <code>{s.source}</code>
+              <SourceRef id={s.source} />
               <span className="source-meta">
                 {formatTimestamp(s.at)} ·{" "}
                 {s.status === "ok" ? "respondió" : "no respondió"}
