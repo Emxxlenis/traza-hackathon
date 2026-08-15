@@ -1,10 +1,23 @@
 import { useState } from "react";
+import { USE_MOCK } from "../api/client";
 
-const EXAMPLE_QUESTIONS = [
-  "¿Por qué Empresa Ejemplo S.A.S. concentra tantos contratos con la Entidad Ficticia de Ejemplo?",
-  "¿Qué contratos públicos tiene Distribuidora Andina?",
-  "¿Cómo ha crecido el valor contratado por Empresa Ejemplo S.A.S. desde 2022?",
-];
+// En modo real los ejemplos son preguntas reales y útiles (empresas con datos
+// públicos verificados); las ficticias solo existen en modo mock/fixtures.
+const EXAMPLE_QUESTIONS = USE_MOCK
+  ? [
+      "¿Por qué Empresa Ejemplo S.A.S. concentra tantos contratos con la Entidad Ficticia de Ejemplo?",
+      "¿Qué contratos públicos tiene Distribuidora Andina?",
+      "¿Cómo ha crecido el valor contratado por Empresa Ejemplo S.A.S. desde 2022?",
+    ]
+  : [
+      "¿Por qué la empresa con NIT 901145160 concentra sus contratos públicos en el Distrito de Cali? Investiga y documenta.",
+      "¿Qué contratos públicos tiene la empresa con NIT 899999068 y en qué entidades se concentran?",
+      "Investiga la contratación pública de la empresa Distribuidora Andina",
+    ];
+
+const EXAMPLES_LABEL = USE_MOCK
+  ? "Ejemplos (con entidades ficticias):"
+  : "Ejemplos — haz clic para cargar la pregunta y revísala antes de investigar:";
 
 interface QuestionInputProps {
   onSubmit: (question: string) => void;
@@ -58,11 +71,17 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
       </form>
 
       <div className="examples">
-        <p className="examples-label">Ejemplos (con entidades ficticias):</p>
+        <p className="examples-label">{EXAMPLES_LABEL}</p>
         <ul className="examples-list">
           {EXAMPLE_QUESTIONS.map((example) => (
             <li key={example}>
-              <button type="button" className="example-chip" onClick={() => onSubmit(example)}>
+              {/* Carga la pregunta en el textarea, NUNCA dispara la investigación:
+                  cada investigación real consume cupo de rate limit y tokens. */}
+              <button
+                type="button"
+                className="example-chip"
+                onClick={() => setQuestion(example)}
+              >
                 {example}
               </button>
             </li>
