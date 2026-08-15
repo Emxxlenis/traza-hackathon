@@ -1,8 +1,12 @@
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from agent.api import investigate
+from app.ratelimit import check_rate_limit
 
 app = FastAPI(title="TRAZA", version="0.1.0")
 
@@ -25,7 +29,7 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/investigate")
+@app.post("/investigate", dependencies=[Depends(check_rate_limit)])
 async def investigate_route(req: InvestigateRequest) -> dict:
     """Corre la investigación y devuelve el expediente según el contrato v0.1.
 
@@ -35,3 +39,10 @@ async def investigate_route(req: InvestigateRequest) -> dict:
     """
     case = await investigate(req.question, candidate_id=req.candidate_id)
     return case.to_contract_dict()
+
+
+# Producción single-origin: la UI compilada se sirve desde el mismo FastAPI.
+# Montado al final para que /investigate y /health resuelvan primero.
+_UI_DIST = Path(__file__).resolve().parents[2] / "ui" / "dist"
+if _UI_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=_UI_DIST, html=True), name="ui")

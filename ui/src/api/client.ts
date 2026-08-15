@@ -58,7 +58,8 @@ const mockApi: TrazaApi = {
 /* Real implementation: FastAPI backend, POST /investigate (contract v0.1).  */
 /* ------------------------------------------------------------------------ */
 
-const API_URL: string = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// "??" y no "||": VITE_API_URL="" es válido y significa mismo origen (producción single-origin).
+const API_URL: string = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 /** Real investigations take 60–100s; give the backend ample room before giving up. */
 const REQUEST_TIMEOUT_MS = 180_000;
@@ -79,7 +80,14 @@ async function postInvestigate(body: InvestigateRequestBody): Promise<CaseFile> 
       signal: controller.signal,
     });
     if (!res.ok) {
-      throw new Error(`Backend respondió HTTP ${res.status}`);
+      // El backend responde {detail} legible (p. ej. límite de investigaciones por hora).
+      let detail = "";
+      try {
+        detail = ((await res.json()) as { detail?: string }).detail ?? "";
+      } catch {
+        /* cuerpo no-JSON: mensaje genérico */
+      }
+      throw new Error(detail || `Backend respondió HTTP ${res.status}`);
     }
     return (await res.json()) as CaseFile;
   } catch (err) {

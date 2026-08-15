@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+data/
+docs/
+backend/.venv
+backend/.pytest_cache
+backend/.ruff_cache
+ui/node_modules
+ui/dist
+ui/.env.local
+**/__pycache__
+*.log
