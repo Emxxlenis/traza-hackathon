@@ -12,6 +12,9 @@ dependencies = [
     "openai>=1.40",
 ]
 
+[tool.setuptools]
+packages = ["app", "agent", "evidence", "croma_client"]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
