@@ -34,6 +34,13 @@ TOP_CONTRACTS = 5
 OBJECT_TRUNCATE_AT = 120
 # Máximo de related_parties propuestos como evidencia directa.
 MAX_RELATED_PARTY_EVIDENCE = 10
+# Desglose por dependencia dentro del grupo top: todas si son ≤6, top-5 + "otras" si son más.
+MAX_DEPENDENCIES_IN_SUMMARY = 6
+TOP_DEPENDENCIES_IN_SUMMARY = 5
+# Un prefijo común de nombres más corto que esto no etiqueta el grupo (se usa "NIT <nit>").
+MIN_COMMON_PREFIX_CHARS = 10
+# Tokens separadores que no cierran un prefijo común ("SANTIAGO DE CALI ... -").
+_PREFIX_SEPARATOR_TOKENS = frozenset({"-", "–", "—", "/", ",", ":", "·"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +100,43 @@ def _truncate(text: Any, limit: int = OBJECT_TRUNCATE_AT) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def _normalize_name(name: Any) -> str:
+    """Colapsa espacios múltiples y bordes: la fuente trae 'CALI  DISTRITO' y 'CALI DISTRITO'."""
+    return " ".join(str(name or "").split())
+
+
+def _common_name_prefix(names: list[str]) -> str:
+    """Prefijo común POR TOKENS de nombres ya normalizados, sin separadores colgantes."""
+    token_lists = [name.split(" ") for name in names]
+    prefix_tokens: list[str] = []
+    for tokens in zip(*token_lists):
+        if any(token != tokens[0] for token in tokens[1:]):
+            break
+        prefix_tokens.append(tokens[0])
+    while prefix_tokens and prefix_tokens[-1] in _PREFIX_SEPARATOR_TOKENS:
+        prefix_tokens.pop()
+    return " ".join(prefix_tokens)
+
+
+def _group_label(nit: str, names: list[str]) -> str:
+    """Etiqueta determinista de un grupo por NIT.
+
+    En Colombia las dependencias de un distrito comparten NIT (ej. 6 secretarías
+    de Cali bajo 890399011): con >1 nombre normalizado distinto, la etiqueta es
+    el prefijo común si es significativo, o "NIT <nit>", con "(N dependencias)".
+    ``names`` debe venir ordenada (sorted) para cualquier desempate.
+    """
+    if len(names) == 1:
+        return names[0]
+    prefix = _common_name_prefix(names)
+    suffix = f"({len(names)} dependencias)"
+    if len(prefix) >= MIN_COMMON_PREFIX_CHARS:
+        return f"{prefix} {suffix}"
+    if nit:
+        return f"NIT {nit} {suffix}"
+    return f"{names[0]} {suffix}"
+
+
 # --- Réplicas exactas de las operaciones de evidence.verify ---
 
 
@@ -119,11 +163,62 @@ def _percentage_steps(part: float, whole: float) -> tuple[list[CalculationStep],
 # --- SECOP: contratos por proveedor ---
 
 
+def _ranked_dependencies(by_name: dict[str, dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
+    """Dependencias de un grupo ordenadas por valor desc; empates por nombre (determinista)."""
+    return sorted(by_name.items(), key=lambda item: (-math.fsum(item[1]["values"]), item[0]))
+
+
+def _dependency_breakdown(
+    by_name: dict[str, dict[str, Any]], total_sum: float
+) -> list[dict[str, Any]]:
+    """Desglose por dependencia: conteo, suma de value y % sobre el TOTAL GENERAL.
+
+    Todas si son ≤ MAX_DEPENDENCIES_IN_SUMMARY; si son más, top-5 por valor
+    más una fila agregada "otras".
+    """
+
+    def _pct(value_sum: float) -> float:
+        return round((value_sum / total_sum) * 100, 1) if total_sum else 0.0
+
+    rows = [
+        (name, sub["count"], math.fsum(sub["values"]))
+        for name, sub in _ranked_dependencies(by_name)
+    ]
+    shown = rows if len(rows) <= MAX_DEPENDENCIES_IN_SUMMARY else rows[:TOP_DEPENDENCIES_IN_SUMMARY]
+    breakdown = [
+        {
+            "dependencia": name,
+            "contratos": count,
+            "valor_total": value_sum,
+            "pct_valor_total": _pct(value_sum),
+        }
+        for name, count, value_sum in shown
+    ]
+    rest = rows[len(shown):]
+    if rest:
+        rest_sum = math.fsum(value_sum for _, _, value_sum in rest)
+        breakdown.append(
+            {
+                "dependencia": f"otras ({len(rest)} dependencias)",
+                "contratos": sum(count for _, count, _ in rest),
+                "valor_total": rest_sum,
+                "pct_valor_total": _pct(rest_sum),
+            }
+        )
+    return breakdown
+
+
 def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reduction:
     """Agrega contratos por entidad contratante EN CÓDIGO y arma el top-5.
 
     El % de concentración usa como denominador los contratos RECUPERADOS (si
     capped=true la muestra es parcial y el resumen y los claims lo declaran).
+
+    La agrupación es por ``entity_nit``: las dependencias de un distrito
+    comparten NIT, así que un grupo con >1 nombre normalizado se etiqueta por
+    prefijo común (o "NIT <nit>") + "(N dependencias)", el grupo top expone su
+    desglose por dependencia y la dependencia top por valor recibe sus propias
+    proposals derivadas.
     """
     data = _data(payload)
     contracts = [c for c in data.get("contracts") or [] if isinstance(c, dict)]
@@ -136,6 +231,9 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
     contract_ids = [str(c.get("contract_id")) for c in contracts if c.get("contract_id")]
 
     # Agregado por entidad contratante (conteo, suma de value) — en código.
+    # La clave es entity_nit: en Colombia las dependencias de un distrito
+    # comparten NIT, así que cada grupo trackea sus nombres (normalizados) por
+    # separado en "by_name" para etiquetar y desglosar sin mentir.
     groups: dict[str, dict[str, Any]] = {}
     all_values: list[float] = []
     dates: list[str] = []
@@ -146,42 +244,55 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
         group = groups.setdefault(
             key,
             {
-                "entity": str(contract.get("entity") or "—"),
+                "entity": "",  # se etiqueta tras agrupar (puede haber >1 nombre por NIT)
                 "nit": str(contract.get("entity_nit") or ""),
                 "count": 0,
                 "values": [],
                 "contract_ids": [],
+                "by_name": {},
             },
         )
         group["count"] += 1
         group["values"].append(value)
+        name = _normalize_name(contract.get("entity")) or "—"
+        sub = group["by_name"].setdefault(name, {"count": 0, "values": [], "contract_ids": []})
+        sub["count"] += 1
+        sub["values"].append(value)
         if contract.get("contract_id"):
             group["contract_ids"].append(str(contract["contract_id"]))
+            sub["contract_ids"].append(str(contract["contract_id"]))
         date = contract.get("sign_date") or contract.get("start_date")
         if date:
             dates.append(str(date))
 
+    for group in groups.values():
+        group["entity"] = _group_label(group["nit"], sorted(group["by_name"]))
+
+    total_sum = math.fsum(all_values)
     ranked = sorted(groups.values(), key=lambda g: (-g["count"], -math.fsum(g["values"])))
 
     entities_summary: list[dict[str, Any]] = []
-    for group in ranked[:TOP_ENTITIES_IN_SUMMARY]:
+    for rank, group in enumerate(ranked[:TOP_ENTITIES_IN_SUMMARY]):
         value_sum = math.fsum(group["values"])
         pct = round((group["count"] / n) * 100, 1) if n else 0.0
-        entities_summary.append(
-            {
-                "entidad": group["entity"],
-                "nit": group["nit"],
-                "contratos": group["count"],
-                "valor_total": value_sum,
-                "pct_contratos": pct,
-            }
-        )
+        entry: dict[str, Any] = {
+            "entidad": group["entity"],
+            "nit": group["nit"],
+            "contratos": group["count"],
+            "valor_total": value_sum,
+            "pct_contratos": pct,
+        }
+        # Desglose por dependencia SOLO en el grupo top multi-nombre: el LLM ve
+        # quién concentra realmente el valor dentro del NIT compartido.
+        if rank == 0 and len(group["by_name"]) > 1:
+            entry["dependencias"] = _dependency_breakdown(group["by_name"], total_sum)
+        entities_summary.append(entry)
 
     top_contracts = sorted(contracts, key=lambda c: float(c.get("value") or 0), reverse=True)
     top_summary = [
         {
             "contract_id": str(c.get("contract_id") or ""),
-            "entidad": str(c.get("entity") or ""),
+            "entidad": _normalize_name(c.get("entity")),
             "valor": float(c.get("value") or 0),
             "objeto": _truncate(c.get("object")),
             "url": str(c.get("url") or ""),
@@ -252,7 +363,6 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
             )
         )
 
-        total_sum = math.fsum(all_values)
         if total_sum > 0:
             quotient = entity_sum / total_sum
             scaled = _mul([quotient, 100.0])
@@ -282,6 +392,62 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
                     contract_ids=top_ids,
                 )
             )
+
+        # Grupo top multi-nombre (NIT compartido por dependencias): proposals
+        # equivalentes para la dependencia top por valor, respaldadas SOLO por
+        # los contratos de esa dependencia.
+        if len(top["by_name"]) > 1:
+            dep_name, dep = _ranked_dependencies(top["by_name"])[0]
+            dep_values = [float(v) for v in dep["values"]]
+            dep_ids = tuple(dep["contract_ids"])
+            dep_label = dep_name + (f" (NIT {top['nit']})" if top["nit"] else "")
+
+            dep_pct_steps, dep_pct = _percentage_steps(dep["count"], n)
+            reduction.derived.append(
+                DerivedProposal(
+                    claim=(
+                        f"El {dep_pct}% de los contratos recuperados ({dep['count']} de {n}) "
+                        f"corresponde a la dependencia {dep_label}, la mayor por valor dentro "
+                        f"del grupo {entity_label}{sample_note}"
+                    ),
+                    calculation=f"{dep['count']} / {n} * 100",
+                    steps=tuple(dep_pct_steps),
+                    contract_ids=dep_ids,
+                )
+            )
+
+            if total_sum > 0:
+                dep_sum = math.fsum(dep_values)
+                dep_quotient = dep_sum / total_sum
+                dep_scaled = _mul([dep_quotient, 100.0])
+                dep_rounded = round(dep_scaled, 1)
+                reduction.derived.append(
+                    DerivedProposal(
+                        claim=(
+                            f"La dependencia {dep_label} concentra el {dep_rounded}% del "
+                            f"valor total de los contratos recuperados{sample_note}"
+                        ),
+                        calculation=f"{dep_sum} / {total_sum} * 100",
+                        steps=(
+                            CalculationStep(
+                                operation="sum", inputs=list(dep_values), output=dep_sum
+                            ),
+                            CalculationStep(
+                                operation="sum", inputs=list(all_values), output=total_sum
+                            ),
+                            CalculationStep(
+                                operation="divide", inputs=["$0", "$1"], output=dep_quotient
+                            ),
+                            CalculationStep(
+                                operation="multiply", inputs=["$2", 100], output=dep_scaled
+                            ),
+                            CalculationStep(
+                                operation="round", inputs=["$3", 1], output=dep_rounded
+                            ),
+                        ),
+                        contract_ids=dep_ids,
+                    )
+                )
 
     # Entidades contratantes descubiertas: candidatas a profundidad +1.
     for group in ranked:
