@@ -520,6 +520,35 @@ button {
   word-break: break-word;
 }
 
+.calculation-steps {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.calculation-steps summary {
+  cursor: pointer;
+  color: var(--accent-ink);
+  font-size: 0.85rem;
+}
+
+.calculation-step-list {
+  margin: 0.4rem 0 0;
+  padding: 0.6rem 0.8rem;
+  background: #f0eee8;
+  border-radius: 8px;
+  list-style: none;
+}
+
+.calculation-step-list li {
+  margin: 0.15rem 0;
+}
+
+.calculation-step-list code {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  word-break: break-word;
+}
+
 .evidence-sources summary {
   cursor: pointer;
   color: var(--accent-ink);

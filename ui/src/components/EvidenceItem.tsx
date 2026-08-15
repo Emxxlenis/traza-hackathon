@@ -1,7 +1,16 @@
-import type { Evidence } from "../types/caseFile";
+import type { CalculationStep, Evidence } from "../types/caseFile";
 
 interface EvidenceItemProps {
   evidence: Evidence;
+}
+
+/**
+ * "$i = operation(inputs) → output". Steps reference previous outputs as "$k"
+ * (contract v0.1), so each line is labeled with its own "$i" to make the
+ * chain mechanically traceable by eye.
+ */
+function formatStep(step: CalculationStep, index: number): string {
+  return `$${index} = ${step.operation}(${step.inputs.join(", ")}) → ${step.output}`;
 }
 
 /**
@@ -40,6 +49,18 @@ export function EvidenceItem({ evidence }: EvidenceItemProps) {
         <div className="evidence-body">
           <p className="evidence-field-label">Cálculo:</p>
           <pre className="calculation">{evidence.calculation}</pre>
+          {evidence.calculation_steps && evidence.calculation_steps.length > 0 && (
+            <details className="calculation-steps">
+              <summary>Pasos del cálculo ({evidence.calculation_steps.length})</summary>
+              <ol className="calculation-step-list">
+                {evidence.calculation_steps.map((step, i) => (
+                  <li key={i}>
+                    <code>{formatStep(step, i)}</code>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
           <details className="evidence-sources">
             <summary>Fuentes del cálculo ({evidence.sources.length})</summary>
             <ul>

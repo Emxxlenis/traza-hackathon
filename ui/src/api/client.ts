@@ -3,8 +3,8 @@ import { buildResolvedCase, completeCase, disambiguationCase } from "../fixtures
 
 /**
  * Backend contract for the UI. Components depend ONLY on this interface —
- * swapping the mock for the real FastAPI backend means providing another
- * implementation below and changing the `api` export. No component changes.
+ * the mock and the real FastAPI backend are interchangeable implementations
+ * selected below by environment. No component changes.
  */
 export interface TrazaApi {
   /** POST /investigate — turns a natural-language question into a case file. */
@@ -12,6 +12,12 @@ export interface TrazaApi {
   /** Continues an investigation after the user picks a disambiguation candidate. */
   resolveDisambiguation(candidateId: string): Promise<CaseFile>;
 }
+
+/**
+ * `VITE_USE_MOCK === '1'` → fixtures (demo mode, test-data banner visible).
+ * Default → real backend over HTTP.
+ */
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "1";
 
 const MOCK_DELAY_MS = 900;
 
@@ -48,22 +54,65 @@ const mockApi: TrazaApi = {
   },
 };
 
-/*
- * Real implementation sketch (enable when the FastAPI backend exists):
- *
- * const httpApi: TrazaApi = {
- *   async investigate(question) {
- *     const res = await fetch(`${import.meta.env.VITE_API_URL}/investigate`, {
- *       method: "POST",
- *       headers: { "Content-Type": "application/json" },
- *       body: JSON.stringify({ question }),
- *     });
- *     if (!res.ok) throw new Error(`HTTP ${res.status}`);
- *     return (await res.json()) as CaseFile;
- *   },
- *   async resolveDisambiguation(candidateId) { ... },
- * };
- */
+/* ------------------------------------------------------------------------ */
+/* Real implementation: FastAPI backend, POST /investigate (contract v0.1).  */
+/* ------------------------------------------------------------------------ */
 
-/** Single swap point: change this export to move off fixtures. */
-export const api: TrazaApi = mockApi;
+const API_URL: string = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+/** Real investigations take 60–100s; give the backend ample room before giving up. */
+const REQUEST_TIMEOUT_MS = 180_000;
+
+interface InvestigateRequestBody {
+  question: string;
+  candidate_id?: string;
+}
+
+async function postInvestigate(body: InvestigateRequestBody): Promise<CaseFile> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${API_URL}/investigate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Backend respondió HTTP ${res.status}`);
+    }
+    return (await res.json()) as CaseFile;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(`La investigación superó el tiempo máximo (${REQUEST_TIMEOUT_MS / 1000}s)`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Disambiguation travels through the same endpoint: the client re-sends the
+ * SAME question plus the chosen `candidate_id`. The question is kept here as
+ * client-side state because the UI's disambiguation flow only hands us the
+ * candidate id.
+ */
+let lastQuestion: string | null = null;
+
+const httpApi: TrazaApi = {
+  async investigate(question: string): Promise<CaseFile> {
+    lastQuestion = question;
+    return postInvestigate({ question });
+  },
+
+  async resolveDisambiguation(candidateId: string): Promise<CaseFile> {
+    if (lastQuestion === null) {
+      throw new Error("No hay una pregunta activa para continuar la investigación");
+    }
+    return postInvestigate({ question: lastQuestion, candidate_id: candidateId });
+  },
+};
+
+/** Single swap point, driven by environment (see USE_MOCK above). */
+export const api: TrazaApi = USE_MOCK ? mockApi : httpApi;

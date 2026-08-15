@@ -36,3 +36,11 @@ npm run dev
 ```
 
 Configuración vía `.env` en la raíz — ver `.env.example`.
+
+Notas:
+
+- La UI llama al backend en `http://localhost:8000` por defecto; se cambia con `VITE_API_URL`
+  (ej. en `ui/.env.local`) si ese puerto está ocupado — correr entonces
+  `uvicorn app.main:app --port 8010`.
+- `VITE_USE_MOCK=1` corre la UI contra fixtures ficticios (sin backend), con banner de
+  "DATOS DE PRUEBA" visible.

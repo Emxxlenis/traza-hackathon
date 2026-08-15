@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CaseFile } from "./types/caseFile";
-import { api } from "./api/client";
+import { api, USE_MOCK } from "./api/client";
 import { TestDataBanner } from "./components/TestDataBanner";
 import { QuestionInput } from "./components/QuestionInput";
 import { DisambiguationView } from "./components/DisambiguationView";
@@ -102,8 +102,10 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        Interfaz de demostración construida sobre fixtures — pendiente de integrar contra datos
-        reales de Croma. TRAZA muestra evidencia; no emite veredictos ni puntajes de riesgo.
+        {USE_MOCK
+          ? "Interfaz de demostración construida sobre fixtures — pendiente de integrar contra datos reales de Croma. "
+          : "Datos: fuentes oficiales vía Croma. "}
+        TRAZA muestra evidencia; no emite veredictos ni puntajes de riesgo.
       </footer>
     </div>
   );
