@@ -2,7 +2,9 @@
 
 RawResponse es SOLO provenance para el Evidence Layer: transporta el payload
 tal cual llegó, sin interpretarlo. Aquí no hay parsing ni modelos tipados de
-la respuesta — la estructura real del JSON de Croma es UNVERIFIED.
+la respuesta — el payload es opaco POR POLÍTICA de esta capa (la estructura
+verificada está documentada en docs/croma-schema.md, pero interpretarla es
+responsabilidad de capas superiores).
 """
 
 from __future__ import annotations
@@ -17,12 +19,12 @@ class RawResponse:
 
     Atributos:
         source: etiqueta de provenance, ej. "croma:rues:entity-by-nit".
-        endpoint: ruta candidata invocada (UNVERIFIED hasta capturas reales).
-        url: URL final de la petición (incluye query string).
+        endpoint: ruta invocada (VERIFICADA; se llama con POST + body JSON).
+        url: URL final de la petición.
         status_code: código HTTP de la respuesta.
         fetched_at: instante de la captura en UTC, formato ISO 8601.
-        payload: cuerpo decodificado como dict/list OPACO — nadie debe asumir
-            su estructura interna hasta tener capturas reales.
+        payload: cuerpo decodificado como dict/list OPACO — esta capa no asume
+            su estructura interna (ver docs/croma-schema.md para el esquema).
         body_text: cuerpo verbatim (texto exacto recibido), para que
             scripts/capture.py pueda guardar la respuesta byte-a-byte.
     """

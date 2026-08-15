@@ -1,10 +1,16 @@
-"""Rutas candidatas de la API de Croma.
+"""Rutas de la API de Croma — VERIFICADAS contra capturas reales.
 
-TODAS las rutas de este módulo son UNVERIFIED: no existen todavía capturas
-reales de la API. Los documentos internos del spec ADEMÁS discrepan entre sí
-(p. ej. /co/secop/process/v1 vs /co/secop/processes-by-entity/v1 vs
-/co/secop/contracts-by-provider/v1). Ninguna ruta se da por buena hasta que el
-humano capture respuestas reales con scripts/capture.py.
+Las 6 rutas de este módulo existen y responden (capturas del 14/15-ago-2026;
+ver docs/croma-schema.md, la fuente de verdad del esquema). Todas se invocan
+con method=POST y body JSON — GET devuelve 405.
+
+Siguen NO VERIFICADOS los detalles listados en docs/croma-schema.md: cómo se
+pide la página 2+, el formato de los filtros from_date/to_date, X-API-Key como
+auth alternativo y rate limits.
+
+DESCARTADA: la ruta /co/secop/process/v1 que aparecía en docs internos NO
+existe tal como la usábamos; las rutas SECOP reales son las dos registradas
+abajo.
 """
 
 from __future__ import annotations
@@ -14,11 +20,11 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class EndpointSpec:
-    """Descriptor de un endpoint candidato.
+    """Descriptor de un endpoint verificado.
 
     Atributos:
         name: nombre corto usado por el CLI de captura y los métodos convenience.
-        path: ruta candidata (UNVERIFIED hasta capturas reales).
+        path: ruta VERIFICADA (existe y responde; se invoca con POST + body JSON).
         source: etiqueta de provenance para el Evidence Layer, ej. "croma:rues:entity-by-nit".
     """
 
@@ -27,20 +33,22 @@ class EndpointSpec:
     source: str
 
 
-# UNVERIFIED: búsqueda de entidades RUES por nombre.
+# VERIFIED (POST): búsqueda RUES por nombre. Body: {"name": str}.
 RUES_ENTITIES_BY_NAME = "/co/rues/entities-by-name/v1"
-# UNVERIFIED: entidad RUES por NIT.
+# VERIFIED (POST): entidad RUES por NIT (sin puntos, sin DV). Body: {"document_number": str}.
 RUES_ENTITY_BY_NIT = "/co/rues/entity-by-nit/v1"
-# UNVERIFIED: los docs internos discrepan (/co/secop/process/v1 también aparece).
+# VERIFIED (POST): procesos por entidad contratante. Body: {"document_number": str} + filtros
+# opcionales (formato de fechas NO VERIFICADO).
 SECOP_PROCESSES_BY_ENTITY = "/co/secop/processes-by-entity/v1"
-# UNVERIFIED: los docs internos discrepan (/co/secop/process/v1 también aparece).
+# VERIFIED (POST): contratos por proveedor. Body: {"document_number": str} + filtros
+# opcionales (formato de fechas NO VERIFICADO).
 SECOP_CONTRACTS_BY_PROVIDER = "/co/secop/contracts-by-provider/v1"
-# UNVERIFIED: antecedentes disciplinarios (Procuraduría).
+# VERIFIED (POST): antecedentes disciplinarios. document_type acepta "CC" (default) y "NIT".
 PROCURADURIA_DISCIPLINARY_RECORDS = "/co/procuraduria/disciplinary-records/v1"
-# UNVERIFIED: antecedentes fiscales (Contraloría).
+# VERIFIED (POST): antecedentes fiscales. document_type SOLO persona (CC|CE|TI|PA|PEP|PPT).
 CONTRALORIA_FISCAL_RECORDS = "/co/contraloria/fiscal-records/v1"
 
-# Registro de endpoints por nombre corto. Todas las rutas son UNVERIFIED.
+# Registro de endpoints por nombre corto. Todas las rutas VERIFICADAS, method=POST.
 ENDPOINTS: dict[str, EndpointSpec] = {
     spec.name: spec
     for spec in (
@@ -71,7 +79,7 @@ def resolve_endpoint(name_or_path: str) -> EndpointSpec:
 
     Acepta el nombre corto del registro ("entity-by-nit"), una ruta registrada
     ("/co/rues/entity-by-nit/v1") o una ruta arbitraria que empiece por "/"
-    (para explorar rutas alternativas cuando lleguen las capturas reales).
+    (para explorar rutas aún no registradas).
     """
     if name_or_path in ENDPOINTS:
         return ENDPOINTS[name_or_path]

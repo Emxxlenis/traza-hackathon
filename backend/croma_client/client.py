@@ -1,7 +1,14 @@
 """Cliente async de transporte para la API de Croma.
 
 Responsabilidad ÚNICA: llevar y traer bytes con reintentos y errores tipados.
-CERO parsing de payloads — las respuestas viajan opacas dentro de RawResponse.
+CERO parsing de payloads de negocio — las respuestas viajan opacas dentro de
+RawResponse. (Única lectura del body: ante un 4xx se intenta extraer
+``error.message`` / ``error.param`` para enriquecer el diagnóstico de la
+excepción; eso es transporte de diagnóstico, no parsing de negocio.)
+
+Transporte VERIFICADO contra capturas reales (ver docs/croma-schema.md):
+  - Todos los endpoints son POST con body JSON (GET devuelve 405).
+  - Errores 4xx: ``{"error": {type, code, message, param, details}}``.
 
 Política de reintentos:
   - Se reintenta SOLO en timeouts, errores de red y 5xx (máximo 3 intentos).
@@ -25,6 +32,7 @@ from croma_client.envelope import RawResponse
 from croma_client.exceptions import (
     CromaAPIError,
     CromaAuthError,
+    CromaMethodNotAllowed,
     CromaNotFound,
     CromaRateLimited,
     CromaUnavailable,
@@ -38,12 +46,42 @@ DEFAULT_BACKOFF_BASE_SECONDS = 0.5
 def _auth_headers(settings: CromaSettings) -> dict[str, str]:
     """Construye el header de auth según el scheme configurado.
 
-    UNVERIFIED: no sabemos el mecanismo real de auth de Croma; ambos schemes
-    son candidatos hasta que el humano lo confirme con la plataforma.
+    VERIFICADO: ``Authorization: Bearer <key>`` funciona contra la API real.
+    ``X-API-Key`` NO está probado; se mantiene como alternativa configurable.
     """
     if settings.auth_scheme == "x-api-key":
         return {"X-API-Key": settings.api_key}
     return {"Authorization": f"Bearer {settings.api_key}"}
+
+
+def _error_detail(response: httpx.Response) -> str:
+    """Extrae ``error.message``/``error.param`` de un body de error 4xx.
+
+    Formato de error VERIFICADO: ``{"error": {type, code, message, param,
+    details}}`` — los 400 de Croma son informativos (nombran el param
+    faltante/inválido). Esto es transporte de diagnóstico, no parsing de datos
+    de negocio. Si el body no es JSON o no tiene esa forma, devuelve "" y el
+    mensaje base de la excepción queda intacto.
+    """
+    try:
+        payload = response.json()
+    except (json.JSONDecodeError, ValueError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return ""
+    fragments: list[str] = []
+    message = error.get("message")
+    if isinstance(message, str) and message.strip():
+        fragments.append(message.strip())
+    param = error.get("param")
+    if isinstance(param, str) and param.strip():
+        fragments.append(f"(param: {param.strip()})")
+    if not fragments:
+        return ""
+    return " Croma dice: " + " ".join(fragments)
 
 
 class CromaClient:
@@ -91,11 +129,12 @@ class CromaClient:
         """Cierra el pool de conexiones subyacente."""
         await self._client.aclose()
 
-    async def get(self, endpoint: str, params: dict[str, Any] | None = None) -> RawResponse:
-        """GET genérico contra un endpoint (nombre corto del registro o ruta).
+    async def call(self, endpoint: str, body: dict[str, Any]) -> RawResponse:
+        """POST genérico contra un endpoint (nombre corto del registro o ruta).
 
-        Devuelve un RawResponse con el payload OPACO. Lanza excepciones tipadas
-        según el resultado (ver croma_client.exceptions).
+        VERIFICADO: todos los endpoints de Croma son POST con body JSON (GET
+        devuelve 405). Devuelve un RawResponse con el payload OPACO. Lanza
+        excepciones tipadas según el resultado (ver croma_client.exceptions).
         """
         spec = resolve_endpoint(endpoint)
         response: httpx.Response | None = None
@@ -103,7 +142,7 @@ class CromaClient:
 
         for attempt in range(1, self._max_attempts + 1):
             try:
-                response = await self._client.get(spec.path, params=params)
+                response = await self._client.post(spec.path, json=body)
             except httpx.TransportError as exc:  # incluye timeouts (httpx.TimeoutException)
                 last_network_error = exc
                 response = None
@@ -131,28 +170,43 @@ class CromaClient:
         return self._build_envelope(response, spec)
 
     def _raise_for_status(self, response: httpx.Response, spec: EndpointSpec) -> None:
-        """Mapea códigos HTTP de error a excepciones tipadas. Sin tocar el payload."""
+        """Mapea códigos HTTP de error a excepciones tipadas.
+
+        En 4xx intenta enriquecer el mensaje con ``error.message``/``error.param``
+        del body (formato de error VERIFICADO); si el body no coopera, el mensaje
+        base queda igual que siempre.
+        """
         status = response.status_code
         url = str(response.request.url)
+        detail = _error_detail(response) if 400 <= status < 500 else ""
         if status in (401, 403):
             raise CromaAuthError(
                 f"Auth rechazada por Croma ({status}) en {spec.name}. Revisa CROMA_API_KEY "
-                "y CROMA_AUTH_SCHEME (el scheme real es UNVERIFIED: prueba el otro).",
+                f"(Bearer es el scheme VERIFICADO).{detail}",
                 status_code=status,
                 endpoint=spec.name,
                 url=url,
             )
         if status == 404:
             raise CromaNotFound(
-                f"404 en {spec.name} ({spec.path}). Ojo: la ruta es UNVERIFIED — puede "
-                "ser ruta incorrecta y no un recurso inexistente.",
+                f"404 en {spec.name} ({spec.path}). La ruta registrada está VERIFICADA; "
+                f"un 404 sugiere ruta mal escrita o no registrada — 'sin datos' llega "
+                f"como 200 con found: false.{detail}",
+                status_code=status,
+                endpoint=spec.name,
+                url=url,
+            )
+        if status == 405:
+            raise CromaMethodNotAllowed(
+                f"405 Method Not Allowed en {spec.name}: la API de Croma solo acepta "
+                f"POST con body JSON (VERIFICADO — GET devuelve 405).{detail}",
                 status_code=status,
                 endpoint=spec.name,
                 url=url,
             )
         if status == 429:
             raise CromaRateLimited(
-                f"Rate limit de Croma alcanzado (429) en {spec.name}.",
+                f"Rate limit de Croma alcanzado (429) en {spec.name}.{detail}",
                 status_code=status,
                 endpoint=spec.name,
                 url=url,
@@ -166,7 +220,7 @@ class CromaClient:
             )
         if status >= 400:
             raise CromaAPIError(
-                f"Croma respondió {status} en {spec.name}.",
+                f"Croma respondió {status} en {spec.name}.{detail}",
                 status_code=status,
                 endpoint=spec.name,
                 url=url,
@@ -179,8 +233,9 @@ class CromaClient:
         try:
             payload: dict[str, Any] | list[Any] = response.json()
         except (json.JSONDecodeError, ValueError):
-            # UNVERIFIED: asumimos JSON, pero si llega otra cosa la preservamos
-            # verbatim en vez de perderla. Clave reservada, no estructura de Croma.
+            # La API verificada responde JSON; si algún día llega otra cosa la
+            # preservamos verbatim en vez de perderla. Clave reservada nuestra,
+            # no estructura de Croma.
             payload = {"_non_json_body": body_text}
         return RawResponse(
             source=spec.source,
@@ -192,30 +247,78 @@ class CromaClient:
             body_text=body_text,
         )
 
-    # --- Métodos convenience: solo delegan, jamás tocan el payload. ---
-    # Los nombres reales de los parámetros de query son UNVERIFIED, por eso
-    # todos aceptan un dict de params tal cual.
+    # --- Métodos convenience: arman el body de la petición con las firmas
+    # VERIFICADAS (ver docs/croma-schema.md) y delegan en call().
+    # JAMÁS parsean la respuesta: el payload sigue opaco en RawResponse. ---
 
-    async def entities_by_name(self, params: dict[str, Any] | None = None) -> RawResponse:
-        """RUES: entidades por nombre (ruta UNVERIFIED)."""
-        return await self.get("entities-by-name", params)
+    async def entities_by_name(self, name: str) -> RawResponse:
+        """RUES: búsqueda de entidades por nombre. Body: {"name": name}."""
+        return await self.call("entities-by-name", {"name": name})
 
-    async def entity_by_nit(self, params: dict[str, Any] | None = None) -> RawResponse:
-        """RUES: entidad por NIT (ruta UNVERIFIED)."""
-        return await self.get("entity-by-nit", params)
+    async def entity_by_nit(self, document_number: str) -> RawResponse:
+        """RUES: entidad por NIT. Body: {"document_number": document_number}.
 
-    async def processes_by_entity(self, params: dict[str, Any] | None = None) -> RawResponse:
-        """SECOP: procesos por entidad (ruta UNVERIFIED, docs internos discrepan)."""
-        return await self.get("processes-by-entity", params)
+        Args:
+            document_number: NIT sin puntos y SIN dígito de verificación.
+        """
+        return await self.call("entity-by-nit", {"document_number": document_number})
 
-    async def contracts_by_provider(self, params: dict[str, Any] | None = None) -> RawResponse:
-        """SECOP: contratos por proveedor (ruta UNVERIFIED, docs internos discrepan)."""
-        return await self.get("contracts-by-provider", params)
+    async def contracts_by_provider(self, document_number: str, **filters: Any) -> RawResponse:
+        """SECOP: contratos por proveedor. Body: document_number + filtros.
 
-    async def disciplinary_records(self, params: dict[str, Any] | None = None) -> RawResponse:
-        """Procuraduría: antecedentes disciplinarios (ruta UNVERIFIED)."""
-        return await self.get("disciplinary-records", params)
+        Args:
+            document_number: documento/NIT del proveedor.
+            **filters: filtros opcionales pass-through al body (from_date,
+                to_date, entity_nit). Se envían tal cual, SIN validar: el
+                formato que acepta la API es NO VERIFICADO.
+        """
+        return await self.call(
+            "contracts-by-provider", {"document_number": document_number, **filters}
+        )
 
-    async def fiscal_records(self, params: dict[str, Any] | None = None) -> RawResponse:
-        """Contraloría: antecedentes fiscales (ruta UNVERIFIED)."""
-        return await self.get("fiscal-records", params)
+    async def processes_by_entity(self, document_number: str, **filters: Any) -> RawResponse:
+        """SECOP: procesos por entidad contratante. Body: document_number + filtros.
+
+        Ojo (verificado): los procesos son el lado de la convocatoria y no traen
+        adjudicatario/proveedor; la relación proveedor-entidad se ve desde
+        contracts_by_provider.
+
+        Args:
+            document_number: NIT de la entidad contratante.
+            **filters: filtros opcionales pass-through al body (from_date,
+                to_date). Se envían tal cual, SIN validar: formato NO VERIFICADO.
+        """
+        return await self.call(
+            "processes-by-entity", {"document_number": document_number, **filters}
+        )
+
+    async def disciplinary_records(
+        self, document_number: str, document_type: str = "CC"
+    ) -> RawResponse:
+        """Procuraduría: antecedentes disciplinarios.
+
+        Args:
+            document_number: documento de la persona o NIT de la empresa.
+            document_type: "CC" por defecto; acepta también "NIT" (VERIFICADO).
+        """
+        return await self.call(
+            "disciplinary-records",
+            {"document_number": document_number, "document_type": document_type},
+        )
+
+    async def fiscal_records(
+        self, document_number: str, document_type: str = "CC"
+    ) -> RawResponse:
+        """Contraloría: antecedentes fiscales.
+
+        Args:
+            document_number: documento de la PERSONA consultada.
+            document_type: SOLO tipos de persona — CC|CE|TI|PA|PEP|PPT. NO existe
+                NIT en esta fuente: los antecedentes fiscales se consultan sobre
+                la persona (p. ej. el representante legal obtenido de
+                related_parties en RUES), no sobre la empresa.
+        """
+        return await self.call(
+            "fiscal-records",
+            {"document_number": document_number, "document_type": document_type},
+        )

@@ -45,8 +45,17 @@ class CromaAuthError(CromaAPIError):
 class CromaNotFound(CromaAPIError):
     """404 — recurso o ruta inexistente. Nunca se reintenta.
 
-    OJO: con rutas UNVERIFIED un 404 puede significar "la ruta candidata no es
-    la real", no necesariamente "la entidad no existe".
+    Las 6 rutas registradas están VERIFICADAS contra la API real, así que un
+    404 apunta a una ruta mal escrita o no registrada — "entidad sin datos"
+    llega como 200 con ``found: false`` (verificado), no como 404.
+    """
+
+
+class CromaMethodNotAllowed(CromaAPIError):
+    """405 — método HTTP equivocado. Nunca se reintenta.
+
+    VERIFICADO: todos los endpoints de Croma son POST con body JSON; GET
+    devuelve 405. Ver este error casi siempre significa que algo intentó GET.
     """
 
 

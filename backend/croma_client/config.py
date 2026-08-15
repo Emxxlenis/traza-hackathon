@@ -1,13 +1,13 @@
 """Configuración del cliente Croma vía pydantic-settings.
 
 Lee el ``.env`` de la raíz del repo. CROMA_BASE_URL NO tiene valor por defecto
-a propósito: no asumimos la URL real de la API hasta verla en la plataforma.
+a propósito: se toma de la plataforma vía .env.
 
-UNVERIFIED: el mecanismo de autenticación real de Croma no está confirmado.
-Soportamos dos schemes candidatos vía CROMA_AUTH_SCHEME:
-  - "bearer"    -> header ``Authorization: Bearer <key>`` (default)
-  - "x-api-key" -> header ``X-API-Key: <key>``
-Hasta tener capturas reales, cualquiera de los dos puede ser el correcto.
+Auth vía CROMA_AUTH_SCHEME:
+  - "bearer"    -> header ``Authorization: Bearer <key>`` (default; VERIFICADO
+    contra la API real)
+  - "x-api-key" -> header ``X-API-Key: <key>`` (NO probado; se mantiene como
+    alternativa configurable)
 """
 
 from __future__ import annotations
@@ -41,8 +41,8 @@ class CromaSettings(BaseSettings):
     )
 
     api_key: str
-    base_url: str  # sin default a propósito: la URL real es UNVERIFIED
-    # UNVERIFIED: scheme de auth real desconocido; ver docstring del módulo.
+    base_url: str  # sin default a propósito: siempre viene del .env
+    # "bearer" está VERIFICADO contra la API real; "x-api-key" NO está probado.
     auth_scheme: Literal["bearer", "x-api-key"] = "bearer"
     timeout_seconds: float = 15.0
 

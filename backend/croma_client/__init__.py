@@ -1,8 +1,9 @@
 """Capa de transporte del cliente REST de Croma (Pista A).
 
-Solo transporte: settings, rutas candidatas (UNVERIFIED), cliente async con
-reintentos, excepciones tipadas y envelope de provenance. Nada aquí interpreta
-la estructura de los payloads de Croma.
+Solo transporte: settings, rutas VERIFICADAS (POST + body JSON, ver
+docs/croma-schema.md), cliente async con reintentos, excepciones tipadas y
+envelope de provenance. Nada aquí interpreta la estructura de los payloads
+de Croma.
 """
 
 from croma_client.client import CromaClient
@@ -14,6 +15,7 @@ from croma_client.exceptions import (
     CromaAuthError,
     CromaConfigError,
     CromaError,
+    CromaMethodNotAllowed,
     CromaNotFound,
     CromaRateLimited,
     CromaUnavailable,
@@ -26,6 +28,7 @@ __all__ = [
     "CromaClient",
     "CromaConfigError",
     "CromaError",
+    "CromaMethodNotAllowed",
     "CromaNotFound",
     "CromaRateLimited",
     "CromaSettings",
