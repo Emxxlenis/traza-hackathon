@@ -43,7 +43,11 @@ def test_investigate_route_requires_question() -> None:
     assert resp.status_code == 422
 
 
-def test_health() -> None:
+def test_health_exposes_nonsecret_operational_config() -> None:
     client = TestClient(app_main.app)
-    assert TestClient(app_main.app).get("/health").json() == {"status": "ok"}
-    assert client.get("/health").status_code == 200
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert isinstance(body["rate_limit_per_ip_hour"], int)
+    assert isinstance(body["rate_limit_global_hour"], int)

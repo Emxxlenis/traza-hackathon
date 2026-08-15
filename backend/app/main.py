@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from agent.api import investigate
+from app import ratelimit
 from app.ratelimit import check_rate_limit
 
 app = FastAPI(title="TRAZA", version="0.1.0")
@@ -25,8 +26,13 @@ class InvestigateRequest(BaseModel):
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health() -> dict:
+    """Salud + configuración operacional no-secreta (verificable desde afuera)."""
+    return {
+        "status": "ok",
+        "rate_limit_per_ip_hour": ratelimit.PER_IP_PER_HOUR,
+        "rate_limit_global_hour": ratelimit.GLOBAL_PER_HOUR,
+    }
 
 
 @app.post("/investigate", dependencies=[Depends(check_rate_limit)])
