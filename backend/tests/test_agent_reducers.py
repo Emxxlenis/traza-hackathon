@@ -115,6 +115,22 @@ def contracts_payload(capped: bool = False) -> dict[str, Any]:
     }
 
 
+def empty_contracts_payload(document: str = NIT_EJEMPLO) -> dict[str, Any]:
+    """SECOP responde OK pero sin contratos: expediente vacío legítimo."""
+    return {
+        "data": {
+            "document_number": document,
+            "entity_nit": None,
+            "from_date": None,
+            "to_date": None,
+            "count": 0,
+            "capped": False,
+            "contracts": [],
+            "pagination": {"total": 0, "page_size": 500, "total_pages": 0, "page": 1},
+        }
+    }
+
+
 def rues_by_nit_payload(found: bool = True) -> dict[str, Any]:
     if not found:
         return {"data": {"found": False, "document_number": "900000099"}}
@@ -342,14 +358,28 @@ def test_contracts_reducer_capped_sample_is_declared():
 
 
 def test_contracts_reducer_empty_payload():
-    payload = {"data": {"document_number": NIT_EJEMPLO, "count": 0, "capped": False,
-                        "contracts": [], "pagination": {"total": 0}}}
-    reduction = reduce_contracts_by_provider(payload, {"document_number": NIT_EJEMPLO})
+    reduction = reduce_contracts_by_provider(
+        empty_contracts_payload(), {"document_number": NIT_EJEMPLO}
+    )
     assert reduction.summary["contratos_recuperados"] == 0
     assert reduction.summary["entidades"] == []
     assert reduction.summary["rango_fechas"] is None
     assert reduction.derived == []
     assert len(reduction.direct) == 1  # el conteo literal sí es evidencia directa
+
+    # El cero se afirma como HECHO (no como fallo) con su raw_reference.
+    zero = reduction.direct[0]
+    assert zero.claim == (
+        f"SECOP no registra contratos para el proveedor {NIT_EJEMPLO}; total reportado: 0"
+    )
+    assert zero.raw_reference == "data.count"
+    # La nota guía al LLM: resultado legítimo + qué NO permite concluir.
+    nota = reduction.summary["nota"]
+    assert "no un error" in nota
+    assert "No permite concluir" in nota
+    # Sin contratos no hay entidades descubiertas ni refs de contrato.
+    assert reduction.discovered == []
+    assert reduction.contract_ids == []
 
 
 # --- SECOP contratos: NIT compartido por varias dependencias ---
@@ -611,6 +641,22 @@ def test_entities_by_name_reducer_builds_candidates():
     assert "CANCELADA" in reduction.candidates[1].detail
     # Con >1 candidato el reducer NO propone evidencia: el loop pausará.
     assert reduction.direct == []
+
+
+def test_entities_by_name_reducer_empty_is_result_not_error():
+    """0 coincidencias: hecho afirmable como direct, con nota de resultado legítimo."""
+    reduction = reduce_entities_by_name(
+        entities_by_name_payload(0), {"name": "Empresa Zutano Inexistente XYZ"}
+    )
+    assert reduction.candidates == []
+    assert reduction.summary["total_candidatos"] == 0
+    assert len(reduction.direct) == 1
+    assert "no devuelve entidades" in reduction.direct[0].claim
+    assert reduction.direct[0].raw_reference == "data.entities"
+    nota = reduction.summary["nota"]
+    assert "no un error" in nota
+    assert "No permite concluir" in nota
+    assert reduction.discovered == []
 
 
 def test_entities_by_name_reducer_single_candidate_proceeds():

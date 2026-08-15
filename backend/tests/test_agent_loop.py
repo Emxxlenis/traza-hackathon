@@ -28,6 +28,7 @@ from tests.test_agent_reducers import (
     NIT_EJEMPLO,
     contracts_payload,
     contraloria_payload,
+    empty_contracts_payload,
     entities_by_name_payload,
     procuraduria_payload,
     rues_by_nit_payload,
@@ -221,6 +222,131 @@ async def test_happy_path_produces_complete_case_file():
     assert contract_dict["findings"][0]["evidence"][-1]["calculation_steps"]
     assert trace["steps_used"] == 2
     assert trace["llm_calls"] == 3
+
+
+# --- Expediente vacío: la fuente responde con cero resultados (NO es error) ---
+
+
+async def test_empty_secop_result_is_complete_and_asserted_as_fact():
+    """Empresa real en RUES pero sin contratos en SECOP: expediente complete
+    con el cero afirmado como evidencia directa, jamás como fallo."""
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entity_by_nit", document_number=NIT_EJEMPLO),
+            resp_tool("secop_contracts_by_provider", document_number=NIT_EJEMPLO),
+            finalize_response(
+                findings=[
+                    {"title": "Identidad registral", "narrative": "Empresa activa en RUES.",
+                     "evidence_ids": ["ev1"]},
+                    {"title": "Sin contratos registrados en SECOP",
+                     "narrative": "SECOP no registra contratos para el NIT consultado.",
+                     # ev1-ev3: RUES (estado + 2 related parties); ev4: cero de SECOP.
+                     "evidence_ids": ["ev4"]},
+                ],
+                unknowns=[
+                    (
+                        "El cero de SECOP no permite concluir que la empresa nunca haya "
+                        "contratado con el Estado (límites de cobertura de la fuente)."
+                    )
+                ],
+                next_steps=["Verificar variantes del NIT y consultar SECOP web directamente."],
+            ),
+        ]
+    )
+    croma = FakeCromaClient(
+        {
+            "entity_by_nit": rues_by_nit_payload(),
+            "contracts_by_provider": empty_contracts_payload(),
+        }
+    )
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    # Las fuentes respondieron: el vacío es un resultado, NO degrada a partial.
+    assert case.status == "complete"
+    assert [s.status for s in case.sources_consulted] == ["ok", "ok"]
+    zero = case.findings[1].evidence[0]
+    assert zero.type == "direct"
+    assert zero.claim == (
+        f"SECOP no registra contratos para el proveedor {NIT_EJEMPLO}; total reportado: 0"
+    )
+    assert zero.source.startswith("croma:secop:contracts-by-provider")
+    assert zero.raw_reference == "data.count"
+    assert any("no permite concluir" in u.lower() for u in case.unknowns)
+
+
+async def test_nit_unresolved_in_rues_with_zero_contracts_is_complete():
+    """NIT que no resuelve en RUES (found=false) y SECOP con 0 contratos:
+    ambos hechos entran como evidencia directa y el expediente cierra complete."""
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entity_by_nit", document_number="900000099"),
+            resp_tool("secop_contracts_by_provider", document_number="900000099"),
+            finalize_response(
+                findings=[
+                    {"title": "RUES sin registro para el NIT",
+                     "narrative": "RUES no devuelve registro para el NIT consultado "
+                                  "(found=false).",
+                     "evidence_ids": ["ev1"]},
+                    {"title": "Sin contratos registrados en SECOP",
+                     "narrative": "SECOP no registra contratos para el NIT consultado.",
+                     "evidence_ids": ["ev2"]},
+                ],
+                unknowns=[
+                    (
+                        "found=false no permite concluir que la empresa no exista ni que "
+                        "el NIT sea inválido."
+                    )
+                ],
+                next_steps=[
+                    (
+                        "Verificar el NIT (sin dígito de verificación) y buscar por "
+                        "razón social en RUES."
+                    )
+                ],
+            ),
+        ]
+    )
+    croma = FakeCromaClient(
+        {
+            "entity_by_nit": rues_by_nit_payload(found=False),
+            "contracts_by_provider": empty_contracts_payload("900000099"),
+        }
+    )
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.status == "complete"
+    assert [s.status for s in case.sources_consulted] == ["ok", "ok"]
+    assert len(case.findings) == 2
+    assert "found=false" in case.findings[0].evidence[0].claim
+    assert "no registra contratos" in case.findings[1].evidence[0].claim
+
+
+async def test_name_search_without_matches_finalizes_without_pause():
+    """Búsqueda por nombre sin coincidencias: 0 candidatos NO dispara
+    needs_disambiguation ni bucles; el hecho entra como direct y cierra complete."""
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entities_by_name", name="Empresa Zutano Inexistente XYZ"),
+            finalize_response(
+                findings=[
+                    {"title": "Sin coincidencias registrales por nombre",
+                     "narrative": "La búsqueda RUES por el nombre consultado no devuelve "
+                                  "entidades.",
+                     "evidence_ids": ["ev1"]},
+                ],
+                unknowns=["El nombre buscado puede diferir de la razón social registrada."],
+                next_steps=["Aportar el NIT o intentar variantes del nombre."],
+            ),
+        ]
+    )
+    croma = FakeCromaClient({"entities_by_name": entities_by_name_payload(0)})
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.status == "complete"
+    assert case.candidates is None
+    assert [s.status for s in case.sources_consulted] == ["ok"]
+    assert len(case.findings) == 1
+    assert "no devuelve entidades" in case.findings[0].evidence[0].claim
 
 
 # --- Límites operacionales enforced en código ---

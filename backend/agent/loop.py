@@ -83,6 +83,20 @@ entidades distintas, profundidad 3 en la cadena de referencias. Si un resultado 
 FUENTES QUE FALLAN: si una consulta devuelve ERROR, la fuente quedó registrada como fallida; \
 continúa con las demás y declara el hueco en unknowns.
 
+RESULTADOS VACÍOS (0 contratos, found=false, búsqueda sin coincidencias):
+- Un resultado vacío es un RESULTADO legítimo, no un fallo: la fuente SÍ respondió. \
+Repórtalo como hallazgo citando su evidencia directa (ej. «SECOP no registra contratos \
+para el NIT X»). Distingue siempre: fuente que respondió vacío (hecho, va en findings) \
+vs fuente que devolvió ERROR (hueco, va en unknowns).
+- En unknowns declara lo que el vacío NO permite concluir: un cero en SECOP no demuestra \
+que la empresa nunca haya contratado con el Estado (la cobertura tiene límites; pueden \
+existir contratos antiguos, bajo otra identificación o en otros sistemas), y un \
+found=false en RUES no demuestra que la empresa no exista.
+- En next_steps sugiere verificaciones útiles: confirmar el NIT (sin dígito de \
+verificación), buscar por razón social, o consultar SECOP/RUES directamente en la web.
+- Jamás uses lenguaje de fallo («no se pudo», «error», «sin éxito») en el narrative de un \
+hallazgo cuando la fuente respondió con cero resultados.
+
 EVIDENCIA Y CIERRE:
 - Cada resultado trae "evidencia_disponible" con ids (ev1, ev2, ...). Son la ÚNICA evidencia \
 citable.

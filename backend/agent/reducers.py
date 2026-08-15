@@ -315,18 +315,29 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
             "Muestra capada: los agregados cubren solo los contratos recuperados "
             f"({n} de {total_reported})."
         )
+    elif not contracts:
+        summary["nota"] = (
+            "0 contratos es un RESULTADO (la fuente respondió), no un error: repórtalo "
+            "como hecho. No permite concluir que la empresa nunca haya contratado con el "
+            "Estado: la cobertura de SECOP/Croma tiene límites y pueden existir contratos "
+            "antiguos, bajo otra identificación o en otros sistemas; decláralo en unknowns."
+        )
 
     reduction = Reduction(summary=summary, contract_ids=contract_ids)
 
     sample_note = " (muestra capada)" if capped else ""
-    reduction.direct.append(
-        DirectProposal(
-            claim=(
-                f"SECOP devuelve {n} contratos para el proveedor {document} "
-                f"(total reportado: {total_reported}{sample_note})"
-            ),
-            raw_reference="data.count",
+    if contracts:
+        count_claim = (
+            f"SECOP devuelve {n} contratos para el proveedor {document} "
+            f"(total reportado: {total_reported}{sample_note})"
         )
+    else:
+        count_claim = (
+            f"SECOP no registra contratos para el proveedor {document}; "
+            f"total reportado: {total_reported}"
+        )
+    reduction.direct.append(
+        DirectProposal(claim=count_claim, raw_reference="data.count")
     )
 
     if ranked and n:
@@ -473,7 +484,9 @@ def reduce_entity_by_nit(payload: Any, args: dict[str, Any]) -> Reduction:
             "document_number": document,
             "nota": (
                 "found=false es respuesta normal (posible matrícula cancelada fuera del "
-                "índice por NIT); puedes intentar rues_entities_by_name."
+                "índice por NIT), no un error: repórtalo como hecho. No permite concluir "
+                "que la empresa no exista ni que el NIT sea inválido; decláralo en "
+                "unknowns. Puedes intentar rues_entities_by_name si conoces la razón social."
             ),
         }
         reduction = Reduction(summary=summary)
@@ -594,6 +607,12 @@ def reduce_entities_by_name(payload: Any, args: dict[str, Any]) -> Reduction:
     reduction = Reduction(summary=summary, candidates=candidates)
 
     if not candidates:
+        summary["nota"] = (
+            "0 coincidencias es un RESULTADO (la fuente respondió), no un error: repórtalo "
+            "como hecho. No permite concluir que la empresa no exista: la razón social "
+            "registrada puede diferir del nombre buscado; decláralo en unknowns y sugiere "
+            "variantes del nombre o aportar el NIT en next_steps."
+        )
         reduction.direct.append(
             DirectProposal(
                 claim=f"La búsqueda RUES por nombre «{query}» no devuelve entidades",
