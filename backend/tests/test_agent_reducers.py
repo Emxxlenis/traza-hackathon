@@ -679,6 +679,84 @@ def test_filter_candidates_selects_and_rejects():
     assert filter_candidates(reduction, "co:nit:999999999") is None
 
 
+def _entity_variant(
+    name: str,
+    *,
+    top_nit=None,
+    detail_nit=None,
+    secondary=None,
+    registry="40000009999",
+    status="CANCELADA",
+):
+    """Entity de by-name con las variantes reales de dónde (no) viene el NIT."""
+    return {
+        "registry_id": registry,
+        "nit": top_nit,
+        "name": name,
+        "registration_status": status,
+        "chamber_name": "BOGOTA",
+        "registration_number": "6555",
+        "detail": {
+            "nit": detail_nit,
+            "secondary_identification": secondary,
+            "registry_id": registry,
+        },
+    }
+
+
+def _by_name_payload(entities: list[dict]) -> dict:
+    return {"data": {"query": "prueba", "capped": False, "entities": entities}}
+
+
+def test_candidate_nit_normalized_from_padded_detail():
+    """RUES zero-padea el NIT en detail; el candidate_id debe ir SIN padding."""
+    reduction = reduce_entities_by_name(
+        _by_name_payload(
+            [
+                _entity_variant("CI FICTICIA PESQUERA", detail_nit="00000900037999"),
+                _entity_variant("OTRA FICTICIA", top_nit="00000901126999", registry="222"),
+            ]
+        ),
+        {"name": "prueba"},
+    )
+    assert reduction.candidates[0].id == "co:nit:900037999"
+    assert reduction.candidates[1].id == "co:nit:901126999"
+    assert "NIT 900037999" in reduction.candidates[0].detail
+
+
+def test_candidate_without_any_nit_uses_registry_and_declares_limitation():
+    """Registro sin NIT en ningún campo: id de matrícula y, al elegirlo, la
+    reanudación declara la limitación de fuente en vez de consultar con ese id."""
+    reduction = reduce_entities_by_name(
+        _by_name_payload(
+            [
+                _entity_variant("AGENCIA FICTICIA ANTIGUA", registry="40000006999"),
+                _entity_variant("FICTICIA CON NIT", top_nit="901126999", registry="333"),
+            ]
+        ),
+        {"name": "prueba"},
+    )
+    assert reduction.candidates[0].id == "co:rues:40000006999"
+
+    chosen = filter_candidates(reduction, "co:rues:40000006999")
+    assert chosen is not None
+    claims = [p.claim for p in chosen.direct]
+    assert any("no expone un NIT" in c for c in claims)
+    assert "limitación de la fuente" in chosen.summary["nota"]
+    assert "NO intentes consultar" in chosen.summary["nota"]
+    assert chosen.discovered == []
+
+
+def test_single_candidate_without_nit_gets_limitation_note():
+    reduction = reduce_entities_by_name(
+        _by_name_payload([_entity_variant("UNICA SIN NIT", registry="40000006999")]),
+        {"name": "prueba"},
+    )
+    assert len(reduction.candidates) == 1
+    assert reduction.discovered == []
+    assert "limitación" in reduction.summary["nota"]
+
+
 # --- Procuraduría / Contraloría / procesos ---
 
 

@@ -560,10 +560,15 @@ def reduce_entity_by_nit(payload: Any, args: dict[str, Any]) -> Reduction:
 def _candidate_from_entity(entity: dict[str, Any]) -> Candidate:
     """Construye un Candidate {id, name, detail} desde un entity de by-name."""
     detail_obj = entity.get("detail") if isinstance(entity.get("detail"), dict) else {}
-    nit = entity.get("nit") or detail_obj.get("nit")
-    if not nit:
-        padded = str(detail_obj.get("secondary_identification") or "")
-        nit = padded.lstrip("0") or None
+    # El NIT puede venir en cualquiera de los tres campos y RUES lo zero-padea a 14
+    # dígitos en algunos ("00000901126453"); entity-by-nit solo resuelve SIN padding,
+    # así que se normaliza SIEMPRE antes de fijarlo en el candidate_id.
+    nit_raw = (
+        entity.get("nit")
+        or detail_obj.get("nit")
+        or detail_obj.get("secondary_identification")
+    )
+    nit = (str(nit_raw).strip().lstrip("0") or None) if nit_raw else None
     registry_id = entity.get("registry_id") or detail_obj.get("registry_id") or "sin-registro"
     candidate_id = f"co:nit:{nit}" if nit else f"co:rues:{registry_id}"
 
@@ -635,6 +640,13 @@ def reduce_entities_by_name(payload: Any, args: dict[str, Any]) -> Reduction:
             reduction.discovered.append(
                 DiscoveredEntity(document=nit, label=f"entidad {chosen.name}")
             )
+        else:
+            summary["nota"] = (
+                "La única entidad encontrada NO tiene NIT recuperable en RUES (limitación "
+                "de la fuente, frecuente en matrículas antiguas o canceladas). NO consultes "
+                "otras fuentes con el id de matrícula: requieren NIT/cédula. Declara la "
+                "limitación como hecho y sugiere en next_steps cómo obtener el NIT."
+            )
     return reduction
 
 
@@ -687,6 +699,29 @@ def filter_candidates(reduction: Reduction, candidate_id: str) -> Reduction | No
     nit = _nit_from_candidate_id(chosen.id)
     if nit:
         filtered.discovered.append(DiscoveredEntity(document=nit, label=f"entidad {chosen.name}"))
+    else:
+        # Limitación real de la fuente: RUES no publica NIT para algunos registros
+        # (típicamente matrículas antiguas o canceladas). Se declara como hecho y se
+        # corta la cadena por documento — NUNCA consultar fuentes con el id de matrícula.
+        filtered.direct.append(
+            DirectProposal(
+                claim=(
+                    f"RUES no expone un NIT para «{chosen.name}» "
+                    f"({chosen.detail or 'sin detalle'}): el registro no lo publica"
+                ),
+                raw_reference=f"data.entities[{chosen_index}]",
+            )
+        )
+        filtered.summary["nota"] = (
+            "La entidad elegida NO tiene NIT recuperable en RUES: es una limitación de la "
+            "fuente (frecuente en matrículas antiguas o canceladas), no un error tuyo ni "
+            "del sistema. NO intentes consultar SECOP/Procuraduría/Contraloría con el id "
+            "de matrícula — esas fuentes requieren un documento (NIT/cédula) que no "
+            "tenemos. Declara la limitación como hecho, explica en unknowns qué no se "
+            "puede continuar sin el NIT, y sugiere en next_steps cómo obtenerlo "
+            "(certificado de cámara de comercio, que el usuario lo aporte). Cierra el "
+            "expediente con lo que sí hay."
+        )
     return filtered
 
 
