@@ -1,4 +1,16 @@
-# Contrato v0 — Case File (expediente)
+# Contrato v0.1 — Case File (expediente)
+
+**Changelog v0.1 (14-ago, decidido por el orquestador tras propuestas convergentes de las Pistas C y D):**
+
+1. `derived` gana `calculation_steps`: lista de pasos `{operation, inputs, output}` re-ejecutable
+   mecánicamente (operaciones del registro cerrado: `sum|subtract|multiply|divide|round`; inputs
+   son literales numéricos o refs `"$k"` al output de un paso anterior). `calculation` se mantiene
+   como expresión legible para humanos; la garantía de reproducibilidad vive en los steps.
+2. `candidates[]` queda fijado como `{id, name, detail?}` — `detail` es el texto corto que
+   distingue homónimos (NIT, ciudad, estado de matrícula).
+3. `sources_consulted[].status` ∈ `ok | error` (timeout se reporta como `error`).
+4. Continuación tras desambiguar: `POST /investigate` acepta `candidate_id` opcional y devuelve un
+   `CaseFile` completo. (Aplica a la capa app/Pista B al integrarse.)
 
 **Estado: PROVISIONAL.** Derivado del spec del Evidence Layer (objetos `direct`/`derived`), no de
 respuestas reales de Croma. Las formas de `source`, `raw_reference` y los IDs de entidad se
@@ -36,6 +48,11 @@ empresas reales en fixtures.
           "claim": "El 70.6% de los contratos de Empresa Ejemplo provienen de Entidad Ficticia",
           "type": "derived",
           "calculation": "12 / 17",
+          "calculation_steps": [
+            { "operation": "divide", "inputs": [12, 17], "output": 0.7058823529411765 },
+            { "operation": "multiply", "inputs": ["$0", 100], "output": 70.58823529411765 },
+            { "operation": "round", "inputs": ["$1", 1], "output": 70.6 }
+          ],
           "sources": ["croma:secop:contract:123", "croma:secop:contract:456"]
         }
       ]

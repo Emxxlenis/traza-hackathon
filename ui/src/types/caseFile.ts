@@ -46,11 +46,22 @@ export interface DirectEvidence {
 }
 
 /** Evidence calculated from sources, with a visible calculation chain ("INFERENCIA" in the UI). */
+/** One mechanically re-executable step of a derived calculation (contract v0.1). */
+export interface CalculationStep {
+  /** Closed registry: "sum" | "subtract" | "multiply" | "divide" | "round". */
+  operation: string;
+  /** Numeric literals or "$k" references to a previous step's output. */
+  inputs: (number | string)[];
+  output: number;
+}
+
 export interface DerivedEvidence {
   claim: string;
   type: "derived";
   /** Human-readable calculation chain, e.g. "12 / 17". */
   calculation: string;
+  /** Structured, re-executable chain (contract v0.1). Optional until backend integration. */
+  calculation_steps?: CalculationStep[];
   /** Source identifiers backing the calculation. */
   sources: string[];
 }
@@ -77,7 +88,7 @@ export interface Finding {
 export interface Candidate {
   id: string;
   name: string;
-  /** Short distinguishing text (e.g. NIT, city, registry status). Optional — not in contract v0. */
+  /** Short distinguishing text (e.g. NIT, city, registry status). Fixed in contract v0.1. */
   detail?: string;
 }
 
