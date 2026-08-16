@@ -26,7 +26,13 @@ function formatStep(step: CalculationStep, index: number): string {
 /** External link to the official source (contract v0.3); always a new tab. */
 function OfficialLink({ href, label }: { href: string; label: string }) {
   return (
-    <a className="source-link" href={href} target="_blank" rel="noopener noreferrer">
+    <a
+      className="source-link"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Abre el proceso en la plataforma oficial SECOP. Si SECOP muestra un error temporal, reintenta en unos minutos."
+    >
       <ExternalLink size={14} aria-hidden="true" />
       {label}
     </a>

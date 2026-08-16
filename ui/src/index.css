@@ -1519,12 +1519,16 @@ button {
   }
 
   .case-file a[href^="http"]::after {
-    content: " (" attr(href) ")";
+    content: attr(href);
+    /* En bloque propio: una URL que quiebra junto al texto del siguiente link
+       produce pegados corruptos al copiarla del PDF (visto en producción). */
+    display: block;
     font-family: var(--mono);
     font-size: 7.5pt;
     font-weight: 400;
     color: #555;
     word-break: break-all;
+    margin: 0.1rem 0 0.2rem;
   }
 
   /* nowrap de pantalla fuera: la URL impresa necesita poder quebrar. */
