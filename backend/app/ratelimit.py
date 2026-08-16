@@ -45,6 +45,8 @@ def _prune(dq: deque[float], now: float) -> None:
 
 
 def _minutes_until_slot(dq: deque[float], now: float) -> int:
+    if not dq:  # límite configurado en 0: no hay slot que esperar, pero no crashear
+        return 60
     return max(1, int((WINDOW_SECONDS - (now - dq[0])) // 60) + 1)
 
 

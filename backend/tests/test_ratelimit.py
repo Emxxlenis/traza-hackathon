@@ -72,6 +72,14 @@ def test_window_slides(monkeypatch) -> None:
     assert _post(client, "10.0.0.9").status_code == 200
 
 
+def test_limit_zero_returns_429_not_500(monkeypatch) -> None:
+    monkeypatch.setattr(rl, "PER_IP_PER_HOUR", 0)
+    client = TestClient(app_main.app)
+    resp = _post(client, "10.9.9.9")
+    assert resp.status_code == 429
+    assert "investigaciones por hora" in resp.json()["detail"]
+
+
 def test_xff_first_hop_wins() -> None:
     client = TestClient(app_main.app)
     assert _post(client, "1.1.1.1, 9.9.9.9").status_code == 200

@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from agent.api import investigate
 from app import ratelimit
@@ -21,8 +21,18 @@ app.add_middleware(
 
 
 class InvestigateRequest(BaseModel):
-    question: str
-    candidate_id: str | None = None
+    # max_length acota el costo por request en un endpoint público (la pregunta
+    # entra al prompt del LLM); la UI impone el mismo tope en el textarea.
+    question: str = Field(min_length=1, max_length=1000)
+    candidate_id: str | None = Field(default=None, max_length=200)
+
+    @field_validator("question")
+    @classmethod
+    def _require_non_blank(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 3:
+            raise ValueError("la pregunta no puede estar vacía")
+        return value
 
 
 @app.get("/health")

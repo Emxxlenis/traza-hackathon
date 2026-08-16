@@ -63,6 +63,7 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
           }}
           placeholder="¿Qué quieres investigar?"
           rows={4}
+          maxLength={1000}
           autoFocus
         />
         <div className="ask-actions">

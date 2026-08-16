@@ -43,6 +43,13 @@ def test_investigate_route_requires_question() -> None:
     assert resp.status_code == 422
 
 
+def test_investigate_rejects_blank_and_oversized_questions() -> None:
+    client = TestClient(app_main.app)
+    assert client.post("/investigate", json={"question": "   \n\t  "}).status_code == 422
+    assert client.post("/investigate", json={"question": "x" * 1001}).status_code == 422
+    assert client.post("/investigate", json={"question": "ok", "candidate_id": "c" * 201}).status_code == 422
+
+
 def test_health_exposes_nonsecret_operational_config() -> None:
     client = TestClient(app_main.app)
     resp = client.get("/health")

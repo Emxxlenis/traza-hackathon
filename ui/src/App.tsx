@@ -13,6 +13,15 @@ type View =
   | { screen: "case"; caseFile: CaseFile }
   | { screen: "error"; message: string; retry: () => void };
 
+/** Muestra el mensaje del backend cuando es legible (p. ej. límite de cuota con
+ * minutos de espera); cae al texto genérico ante errores técnicos de red. */
+function friendlyError(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message && !/fetch|network|load failed/i.test(err.message)) {
+    return err.message;
+  }
+  return fallback;
+}
+
 export default function App() {
   const [view, setView] = useState<View>({ screen: "ask" });
 
@@ -27,11 +36,13 @@ export default function App() {
           setView({ screen: "case", caseFile });
         }
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         setView({
           screen: "error",
-          message:
+          message: friendlyError(
+            err,
             "No pudimos completar la investigación en este momento. Tu pregunta no se perdió: puedes reintentar.",
+          ),
           retry: () => runInvestigation(question),
         });
       });
@@ -42,10 +53,13 @@ export default function App() {
     api
       .resolveDisambiguation(candidateId)
       .then((caseFile) => setView({ screen: "case", caseFile }))
-      .catch(() => {
+      .catch((err: unknown) => {
         setView({
           screen: "error",
-          message: "No pudimos continuar la investigación con esa entidad. Puedes reintentar.",
+          message: friendlyError(
+            err,
+            "No pudimos continuar la investigación con esa entidad. Puedes reintentar.",
+          ),
           retry: () => resolveCandidate(candidateId),
         });
       });
