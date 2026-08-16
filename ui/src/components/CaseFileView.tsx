@@ -1,17 +1,12 @@
+import { Info } from "lucide-react";
 import type { CaseFile } from "../types/caseFile";
 import { plainSummary } from "../lib/plainLanguage";
 import { EvidenceItem } from "./EvidenceItem";
-import { SourceRef } from "./SourceRef";
+import { InvestigationTimeline } from "./InvestigationTimeline";
 
 interface CaseFileViewProps {
   caseFile: CaseFile;
   onNewInvestigation: () => void;
-}
-
-function formatTimestamp(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
 }
 
 /** Screen (c): the expediente. Findings as an expandable hierarchical list; unknowns and next steps always visible. */
@@ -24,8 +19,11 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
         <h2 className="case-question">{caseFile.question}</h2>
         {caseFile.status === "partial" && (
           <p className="partial-notice">
-            Expediente parcial: alguna de las fuentes no respondió. Se muestra lo que sí se pudo
-            consultar y se declara lo que falta en «Qué no sabemos».
+            <Info size={16} aria-hidden="true" />
+            <span>
+              Expediente parcial: alguna de las fuentes no respondió. Se muestra lo que sí se pudo
+              consultar y se declara lo que falta en «Qué no sabemos».
+            </span>
           </p>
         )}
       </header>
@@ -61,20 +59,7 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
         )}
       </section>
 
-      <section className="case-section">
-        <h3 className="section-title">Fuentes consultadas</h3>
-        <ul className="source-list">
-          {caseFile.sources_consulted.map((s) => (
-            <li key={`${s.source}-${s.at}`} className="source-row">
-              <SourceRef id={s.source} />
-              <span className="source-meta">
-                {formatTimestamp(s.at)} ·{" "}
-                {s.status === "ok" ? "respondió" : "no respondió"}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <InvestigationTimeline sources={caseFile.sources_consulted} />
 
       <section className="case-section">
         <h3 className="section-title">Hallazgos</h3>

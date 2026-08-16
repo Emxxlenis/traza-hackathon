@@ -1,20 +1,48 @@
-/* TRAZA UI — plain CSS, clarity over beauty. Calm, neutral palette:
-   no alarm reds, no danger iconography — the UI never implies guilt. */
+/* TRAZA UI — civic-tech moderno. Calm, warm-neutral palette with a civic blue:
+   no alarm reds, no danger iconography — the UI never implies guilt.
+   If the fonts CDN fails, the system stack takes over transparently. */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
-  --paper: #f6f5f1;
+  /* Warm neutrals (stone family) */
+  --paper: #fafaf9;
   --card: #ffffff;
-  --ink: #24292f;
-  --ink-soft: #57606a;
-  --line: #d8d5cd;
-  --accent: #2b5f8a;
-  --accent-ink: #1d4460;
-  --direct-bg: #e3ecf5;
-  --direct-ink: #1d4460;
-  --derived-bg: #ece7f6;
-  --derived-ink: #4d3a80;
-  --banner-bg: #f8ecc9;
-  --banner-ink: #6d5713;
+  --ink: #292524; /* 15.17:1 on card, 14.52:1 on paper */
+  --ink-soft: #57534e; /* 7.63:1 on card, 7.30:1 on paper */
+  --line: #e7e5e4;
+  --line-strong: #d6d3d1;
+  --well: #f5f5f4; /* code/calculation wells */
+
+  /* Civic blue */
+  --accent: #2563eb; /* 5.17:1 on card; white on it 5.17:1 */
+  --accent-ink: #1e40af; /* 8.72:1 on card */
+  --accent-soft: #eff6ff;
+  --accent-border: #bfdbfe;
+
+  /* HECHO — solid green chip (white text 5.02:1) */
+  --fact-bg: #15803d;
+  --fact-ink: #ffffff;
+
+  /* INFERENCIA — solid amber chip (dark text 6.97:1) */
+  --infer-bg: #f59e0b;
+  --infer-ink: #451a03;
+
+  /* Soft amber notices: light background + border, NOT a solid chip —
+     visually distinct from the INFERENCIA chip on purpose. */
+  --notice-bg: #fffbeb;
+  --notice-border: #fde68a;
+  --notice-ink: #78350f; /* 8.75:1 on notice-bg */
+  --banner-bg: #fef3c7;
+  --banner-ink: #78350f; /* 8.15:1 on banner-bg */
+
+  --radius-card: 12px;
+  --radius-inner: 10px;
+  --shadow-card: 0 1px 2px rgba(28, 25, 23, 0.05), 0 2px 8px rgba(28, 25, 23, 0.06);
+  --shadow-raised: 0 2px 4px rgba(28, 25, 23, 0.06), 0 6px 16px rgba(28, 25, 23, 0.08);
+
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 }
 
@@ -26,22 +54,28 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  line-height: 1.55;
+  font-family: var(--sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 code {
   font-family: var(--mono);
   font-size: 0.85em;
-  background: #f0eee8;
-  border-radius: 4px;
-  padding: 0.1em 0.35em;
+  background: var(--well);
+  border-radius: 5px;
+  padding: 0.1em 0.4em;
   word-break: break-all;
 }
 
 button {
   font: inherit;
   cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .app {
@@ -57,8 +91,8 @@ button {
   z-index: 10;
   background: var(--banner-bg);
   color: var(--banner-ink);
-  border-bottom: 1px solid #e4d49a;
-  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--notice-border);
+  padding: 0.55rem 1rem;
   text-align: center;
   font-size: 0.85rem;
   letter-spacing: 0.02em;
@@ -68,26 +102,27 @@ button {
 .app-header {
   max-width: 46rem;
   margin: 0 auto;
-  padding: 2.2rem 1.25rem 0.5rem;
+  padding: 2.5rem 1.25rem 0.5rem;
   width: 100%;
 }
 
 .app-title {
   margin: 0;
-  font-size: 1.6rem;
-  letter-spacing: 0.14em;
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
   color: var(--accent-ink);
 }
 
 .app-tagline {
-  margin: 0.25rem 0 0;
+  margin: 0.3rem 0 0;
   color: var(--ink-soft);
 }
 
 .app-main {
   max-width: 46rem;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 3rem;
+  padding: 1.5rem 1.25rem 3.5rem;
   width: 100%;
   flex: 1;
 }
@@ -97,29 +132,33 @@ button {
   color: var(--ink-soft);
   font-size: 0.8rem;
   text-align: center;
-  padding: 1rem 1.25rem 1.5rem;
+  padding: 1.1rem 1.25rem 1.6rem;
 }
 
 /* ---- Screen (a): question input ---- */
 .ask-heading {
-  margin: 1rem 0 0.25rem;
-  font-size: 1.25rem;
+  margin: 1rem 0 0.3rem;
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
 .ask-sub {
-  margin: 0 0 1.25rem;
+  margin: 0 0 1.4rem;
   color: var(--ink-soft);
 }
 
 .ask-textarea {
   width: 100%;
   font: inherit;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-inner);
   background: var(--card);
+  box-shadow: var(--shadow-card);
   resize: vertical;
   min-height: 6.5rem;
+  color: var(--ink);
 }
 
 .ask-textarea:focus {
@@ -131,7 +170,7 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 0.6rem;
+  margin-top: 0.7rem;
   gap: 1rem;
 }
 
@@ -144,9 +183,11 @@ button {
   background: var(--accent);
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 0.55rem 1.4rem;
+  border-radius: 9px;
+  padding: 0.6rem 1.5rem;
   font-weight: 600;
+  box-shadow: var(--shadow-card);
+  transition: background 0.15s ease;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -159,11 +200,13 @@ button {
 }
 
 .btn-secondary {
-  background: transparent;
+  background: var(--card);
   color: var(--accent-ink);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.55rem 1.4rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 0.6rem 1.5rem;
+  font-weight: 500;
+  transition: border-color 0.15s ease;
 }
 
 .btn-secondary:hover {
@@ -171,13 +214,13 @@ button {
 }
 
 .examples {
-  margin-top: 2rem;
+  margin-top: 2.25rem;
 }
 
 .examples-label {
   color: var(--ink-soft);
   font-size: 0.85rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.6rem;
 }
 
 .examples-list {
@@ -186,7 +229,7 @@ button {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .example-chip {
@@ -194,14 +237,17 @@ button {
   text-align: left;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.7rem 1rem;
+  border-radius: var(--radius-inner);
+  padding: 0.85rem 1.1rem;
   color: var(--ink);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .example-chip:hover {
   border-color: var(--accent);
   color: var(--accent-ink);
+  box-shadow: var(--shadow-raised);
 }
 
 /* ---- Loading / error ---- */
@@ -236,8 +282,9 @@ button {
 .error-card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 1.5rem;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 1.75rem;
   margin-top: 2rem;
 }
 
@@ -249,7 +296,7 @@ button {
 .error-actions {
   display: flex;
   gap: 0.75rem;
-  margin-top: 1rem;
+  margin-top: 1.1rem;
 }
 
 /* ---- Screen (b): disambiguation ---- */
@@ -263,7 +310,7 @@ button {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.7rem;
 }
 
 .candidate-card {
@@ -271,15 +318,18 @@ button {
   text-align: left;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.85rem 1.1rem;
+  border-radius: var(--radius-inner);
+  padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .candidate-card:hover {
   border-color: var(--accent);
+  box-shadow: var(--shadow-raised);
 }
 
 .candidate-name {
@@ -295,34 +345,50 @@ button {
 /* ---- Screen (c): case file ---- */
 .case-question-label {
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   font-size: 0.72rem;
+  font-weight: 600;
   color: var(--ink-soft);
-  margin: 1rem 0 0.15rem;
+  margin: 1rem 0 0.2rem;
 }
 
 .case-question {
-  margin: 0 0 0.5rem;
-  font-size: 1.3rem;
+  margin: 0 0 0.6rem;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   line-height: 1.35;
 }
 
+/* Partial notice: soft amber PANEL (light bg + border) — deliberately unlike
+   the solid INFERENCIA chip, so "aviso" and "dato inferido" never look alike. */
 .partial-notice {
-  background: var(--banner-bg);
-  color: var(--banner-ink);
-  border-radius: 8px;
-  padding: 0.6rem 0.9rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  background: var(--notice-bg);
+  color: var(--notice-ink);
+  border: 1px solid var(--notice-border);
+  border-radius: var(--radius-inner);
+  padding: 0.8rem 1.1rem;
   font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.partial-notice svg {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
 }
 
 /* Collapsible legend: how to read the case file */
 .legend {
-  margin: 0.9rem 0 0;
+  margin: 1rem 0 0;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.55rem 0.9rem;
+  border-radius: var(--radius-inner);
+  padding: 0.7rem 1.1rem;
   font-size: 0.9rem;
+  box-shadow: var(--shadow-card);
 }
 
 .legend summary {
@@ -331,34 +397,41 @@ button {
   font-weight: 600;
 }
 
+.legend summary::marker {
+  color: var(--accent);
+}
+
 .legend p {
-  margin: 0.6rem 0 0.25rem;
+  margin: 0.7rem 0 0.3rem;
+  line-height: 1.65;
 }
 
 /* Plain-language summary: highlighted but sober — no alert colors */
 .plain-summary {
   font-size: 1.08rem;
-  line-height: 1.55;
+  line-height: 1.6;
   background: var(--card);
   border: 1px solid var(--line);
   border-left: 4px solid var(--accent);
-  border-radius: 0 10px 10px 0;
-  padding: 0.85rem 1.1rem;
-  margin: 1rem 0 0;
+  border-radius: 6px var(--radius-card) var(--radius-card) 6px;
+  box-shadow: var(--shadow-card);
+  padding: 1.1rem 1.35rem;
+  margin: 1.1rem 0 0;
 }
 
 .case-section {
-  margin-top: 1.75rem;
+  margin-top: 2rem;
 }
 
 .section-title {
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  font-weight: 650;
   color: var(--accent-ink);
   border-bottom: 1px solid var(--line);
-  padding-bottom: 0.35rem;
-  margin: 0 0 0.75rem;
+  padding-bottom: 0.4rem;
+  margin: 0 0 0.85rem;
 }
 
 .empty-note {
@@ -372,16 +445,18 @@ button {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 0.65rem;
 }
 
 .entity-chip {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-inner);
+  box-shadow: var(--shadow-card);
+  padding: 0.65rem 1rem;
   display: flex;
   flex-direction: column;
+  gap: 0.1rem;
 }
 
 .entity-name {
@@ -393,51 +468,174 @@ button {
   font-size: 0.8rem;
 }
 
-.source-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.source-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.75rem;
-  align-items: baseline;
-  font-size: 0.9rem;
-}
-
-.source-meta {
-  color: var(--ink-soft);
-  font-size: 0.8rem;
-}
-
 /* Readable source names: label first, technical id secondary (never dropped) */
 .source-label {
   font-weight: 500;
 }
 
+.source-icon {
+  display: inline-block;
+  vertical-align: -0.125em;
+  margin-right: 0.35rem;
+  color: var(--accent-ink);
+}
+
 .source-technical {
   font-family: var(--mono);
   font-size: 0.72rem;
+  color: var(--ink-soft); /* 7.63:1 on card, 7.30:1 on paper wells */
+  /* Quiebra en guiones/segmentos, nunca a mitad de token ("entity-by-n / it"). */
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* ---- Ruta de la investigación: chronological stepper ---- */
+.timeline-subtitle {
+  margin: -0.15rem 0 1.25rem;
   color: var(--ink-soft);
-  word-break: break-all;
+  font-size: 0.9rem;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+}
+
+.timeline-step {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 0.4rem;
+}
+
+/* Horizontal connector between step markers */
+.timeline-step + .timeline-step::before {
+  content: "";
+  position: absolute;
+  top: calc(1.375rem - 1px);
+  right: calc(50% + 1.7rem);
+  left: calc(-50% + 1.7rem);
+  height: 2px;
+  background: var(--accent-border);
+}
+
+.timeline-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: 1.5px solid var(--accent-border);
+  color: var(--accent-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* A source that did not answer: neutral gray — informative, never alarming */
+.timeline-step-silent .timeline-icon {
+  background: var(--well);
+  border-color: var(--line-strong);
+  color: var(--ink-soft);
+}
+
+.timeline-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.55rem;
+  min-width: 0;
+}
+
+.timeline-meta {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.timeline-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.timeline-detail {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+.timeline-status {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--fact-bg); /* #15803D on card 5.02:1, on paper 4.80:1 */
+}
+
+.timeline-status-silent {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* Narrow screens: the stepper stands up vertically */
+@media (max-width: 640px) {
+  .timeline {
+    flex-direction: column;
+    gap: 1.2rem;
+  }
+
+  .timeline-step {
+    flex-direction: row;
+    align-items: flex-start;
+    text-align: left;
+    padding: 0;
+    gap: 0.9rem;
+    width: 100%;
+  }
+
+  .timeline-step + .timeline-step::before {
+    display: none;
+  }
+
+  /* Vertical connector: from below each marker down to the next step */
+  .timeline-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: calc(1.375rem - 1px);
+    top: 3rem;
+    bottom: -1.2rem;
+    width: 2px;
+    background: var(--accent-border);
+  }
+
+  .timeline-info {
+    margin-top: 0.1rem;
+  }
+
+  .timeline-meta {
+    white-space: normal;
+  }
 }
 
 /* Findings: expandable hierarchical list */
 .finding-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.9rem;
 }
 
 .finding {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
 .finding-summary {
@@ -446,8 +644,9 @@ button {
   justify-content: space-between;
   align-items: baseline;
   gap: 1rem;
-  padding: 0.9rem 1.1rem;
+  padding: 1.1rem 1.4rem;
   cursor: pointer;
+  border-radius: var(--radius-card);
 }
 
 .finding-summary::-webkit-details-marker {
@@ -457,7 +656,7 @@ button {
 .finding-summary::before {
   content: "▸";
   color: var(--accent);
-  margin-right: 0.35rem;
+  margin-right: 0.4rem;
   transition: transform 0.15s ease;
   display: inline-block;
 }
@@ -478,13 +677,14 @@ button {
 }
 
 .finding-body {
-  padding: 0 1.1rem 1.1rem;
+  padding: 0 1.4rem 1.4rem;
   border-top: 1px solid var(--line);
 }
 
 .finding-narrative {
   color: var(--ink);
-  margin: 0.9rem 0;
+  margin: 1.05rem 0;
+  line-height: 1.65;
 }
 
 .evidence-list {
@@ -493,86 +693,90 @@ button {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .evidence {
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-inner);
+  padding: 1rem 1.15rem;
   background: var(--paper);
 }
 
 .evidence-head {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.7rem;
   align-items: flex-start;
 }
 
+/* HECHO / INFERENCIA: solid color chips (pill), AA-checked pairs */
 .badge {
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  border-radius: 5px;
-  padding: 0.2rem 0.5rem;
+  letter-spacing: 0.07em;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
   white-space: nowrap;
   margin-top: 0.15rem;
 }
 
 .badge-direct {
-  background: var(--direct-bg);
-  color: var(--direct-ink);
+  background: var(--fact-bg); /* white on #15803D = 5.02:1 */
+  color: var(--fact-ink);
 }
 
 .badge-derived {
-  background: var(--derived-bg);
-  color: var(--derived-ink);
+  background: var(--infer-bg); /* #451A03 on #F59E0B = 6.97:1 */
+  color: var(--infer-ink);
 }
 
 .evidence-claim {
   margin: 0;
   font-weight: 500;
+  line-height: 1.55;
 }
 
 .evidence-body {
-  margin-top: 0.5rem;
+  margin-top: 0.6rem;
   padding-left: 0.15rem;
   font-size: 0.9rem;
 }
 
 .evidence-field-label {
   color: var(--ink-soft);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin: 0.4rem 0 0.2rem;
+  margin: 0.45rem 0 0.25rem;
 }
 
 .evidence-source,
 .evidence-raw {
-  margin: 0.25rem 0;
+  margin: 0.3rem 0;
 }
 
 .calculation {
   font-family: var(--mono);
   font-size: 0.85rem;
-  background: #f0eee8;
+  background: var(--well);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-  margin: 0.25rem 0 0.5rem;
+  padding: 0.65rem 0.9rem;
+  margin: 0.3rem 0 0.55rem;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 /* Plain-language companion line inside the calculation block */
 .plain-calc {
-  margin: 0.1rem 0 0.5rem;
+  margin: 0.1rem 0 0.55rem;
   font-size: 0.9rem;
   color: var(--ink);
 }
 
 .calculation-steps {
-  margin: 0.25rem 0 0.5rem;
+  margin: 0.3rem 0 0.55rem;
 }
 
 .calculation-steps summary {
@@ -581,16 +785,21 @@ button {
   font-size: 0.85rem;
 }
 
+.calculation-steps summary::marker {
+  color: var(--accent);
+}
+
 .calculation-step-list {
-  margin: 0.4rem 0 0;
-  padding: 0.6rem 0.8rem;
-  background: #f0eee8;
+  margin: 0.45rem 0 0;
+  padding: 0.65rem 0.9rem;
+  background: var(--well);
+  border: 1px solid var(--line);
   border-radius: 8px;
   list-style: none;
 }
 
 .calculation-step-list li {
-  margin: 0.15rem 0;
+  margin: 0.18rem 0;
 }
 
 .calculation-step-list code {
@@ -606,38 +815,51 @@ button {
   font-size: 0.85rem;
 }
 
+.evidence-sources summary::marker {
+  color: var(--accent);
+}
+
 .evidence-sources ul {
-  margin: 0.4rem 0 0;
+  margin: 0.45rem 0 0;
   padding-left: 1.25rem;
 }
 
 .evidence-sources li {
-  margin: 0.2rem 0;
+  margin: 0.25rem 0;
 }
 
-/* Unknowns and next steps — always visible */
+/* Unknowns and next steps — always visible; dense text breathes here */
 .unknowns .plain-list,
 .next-steps .plain-list {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 1.35rem;
 }
 
 .plain-list li {
-  margin: 0.4rem 0;
+  margin: 0.55rem 0;
 }
 
 .unknowns {
   background: var(--card);
-  border: 1px dashed var(--line);
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-card);
+  padding: 1.25rem 1.5rem;
+}
+
+.unknowns .plain-list li {
+  line-height: 1.75;
 }
 
 .next-steps {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 1.25rem 1.5rem;
+}
+
+.next-steps .plain-list li {
+  line-height: 1.7;
 }
 
 .unknowns .section-title,
@@ -647,5 +869,5 @@ button {
 }
 
 .case-footer {
-  margin-top: 2rem;
+  margin-top: 2.25rem;
 }
