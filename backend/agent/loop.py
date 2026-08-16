@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -166,10 +167,24 @@ class _State:
     # NIT consultado directamente) — base de la scope_note del contrato v0.2.
     investigated_document: str | None = None
     investigated_name: str | None = None
+    # Callback opcional de progreso (eventos observables: tool calls y fase de
+    # ensamblado). Puramente informativo: un callback roto JAMÁS afecta el loop.
+    on_event: Callable[[dict[str, Any]], None] | None = None
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _emit(state: _State, event: dict[str, Any]) -> None:
+    """Invoca el callback de progreso, si existe. Nunca propaga excepciones:
+    el streaming es observabilidad, no parte de la investigación."""
+    if state.on_event is None:
+        return
+    try:
+        state.on_event(event)
+    except Exception:  # cualquier fallo del callback se ignora a propósito
+        logger.warning("callback on_event falló; se ignora", exc_info=True)
 
 
 def _entity_key(tool: ToolSpec, args: dict[str, Any]) -> str:
@@ -206,6 +221,7 @@ async def run_investigation(
     croma: Any,
     config: LoopConfig | None = None,
     trace: dict[str, Any] | None = None,
+    on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> CaseFile:
     """Corre el loop completo del agente y devuelve un CaseFile validado.
 
@@ -216,9 +232,13 @@ async def run_investigation(
         croma: cliente Croma (o fake en tests) con los métodos convenience.
         config: límites operacionales; por defecto los del producto.
         trace: dict opcional que el loop rellena con métricas (tokens, pasos).
+        on_event: callback sync opcional de progreso. Recibe dicts con momentos
+            OBSERVABLES (inicio/fin de cada consulta a fuente y la fase de
+            ensamblado) — nunca razonamiento interno. Un callback que lanza
+            excepción se ignora: jamás tumba la investigación.
     """
     config = config or LoopConfig()
-    state = _State(config=config, question=question)
+    state = _State(config=config, question=question, on_event=on_event)
     usage_total = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     llm_calls = 0
 
@@ -298,6 +318,7 @@ async def run_investigation(
             finalize_only = True
             messages.append({"role": "user", "content": LIMITS_EXHAUSTED_MESSAGE})
 
+    _emit(state, {"type": "phase", "label": "Construyendo expediente"})
     case = assemble_case_file(
         question=question,
         draft=draft,
@@ -370,6 +391,11 @@ async def _execute_source_call(
     state.entities_seen.add(key)
     state.entity_depths.setdefault(key, depth)
     state.steps_used += 1
+    step_number = state.steps_used  # número de paso REAL (el contador de max_steps)
+    _emit(
+        state,
+        {"type": "step", "source": spec.source_label, "status": "start", "step": step_number},
+    )
 
     # --- Llamada real; una fuente que falla NUNCA tumba la investigación ---
     try:
@@ -380,6 +406,10 @@ async def _execute_source_call(
             SourceConsulted(source=spec.source_label, at=_now(), status="error")
         )
         state.tool_log.append({"tool": tool_name, "args": args, "status": "error"})
+        _emit(
+            state,
+            {"type": "step", "source": spec.source_label, "status": "error", "step": step_number},
+        )
         logger.warning("fuente %s falló: %s", spec.source_label, exc)
         _maybe_exhaust_steps(state)
         return (
@@ -392,6 +422,10 @@ async def _execute_source_call(
         SourceConsulted(source=spec.source_label, at=_now(), status="ok")
     )
     state.tool_log.append({"tool": tool_name, "args": args, "status": "ok"})
+    _emit(
+        state,
+        {"type": "step", "source": spec.source_label, "status": "ok", "step": step_number},
+    )
 
     ref = state.store.ingest_raw(raw)
     reduction = reduce_tool_result(tool_name, raw.payload, args)

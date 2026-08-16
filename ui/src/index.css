@@ -420,6 +420,98 @@ button {
   50% { opacity: 1; transform: scale(1); }
 }
 
+/* ---- Live progress (streaming): checklist de pasos reales ---- */
+.live-loading {
+  max-width: 36rem;
+  margin: 2.25rem auto 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 1.75rem;
+}
+
+.live-title {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+}
+
+.live-question {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  /* Recorte a ~2 líneas: la pregunta completa vive en el expediente. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.live-steps {
+  list-style: none;
+  margin: 1.4rem 0 1.1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.live-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.live-icon {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+}
+
+.live-icon-active { color: var(--accent); }
+.live-icon-done { color: var(--accent-ink); }
+/* Fuente que no respondió: gris neutro a propósito — nunca rojo/alarma. */
+.live-icon-muted { color: var(--ink-soft); }
+
+.live-step-label {
+  min-width: 0;
+}
+
+.live-step-state {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.live-step-state.is-muted {
+  color: var(--ink-soft);
+}
+
+.live-spin {
+  animation: live-spin 0.9s linear infinite;
+}
+
+@keyframes live-spin {
+  to { transform: rotate(360deg); }
+}
+
+.live-counter {
+  margin: 0 0 0.3rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.live-note {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.live-loading .loading-time {
+  color: var(--ink-soft);
+}
+
 .error-card {
   background: var(--card);
   border: 1px solid var(--line);

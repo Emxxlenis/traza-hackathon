@@ -1,13 +1,22 @@
+import asyncio
+import contextlib
+import json
+import logging
+from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from agent.api import investigate
 from app import ratelimit
 from app.ratelimit import check_rate_limit
+
+logger = logging.getLogger("traza.app")
 
 app = FastAPI(title="TRAZA", version="0.1.0")
 
@@ -55,6 +64,95 @@ async def investigate_route(req: InvestigateRequest) -> dict:
     """
     case = await investigate(req.question, candidate_id=req.candidate_id)
     return case.to_contract_dict()
+
+
+# --- Streaming de progreso (NDJSON) -----------------------------------------
+# El POST /investigate clásico queda intacto como fallback; este endpoint emite
+# los MISMOS resultados más eventos de progreso reales del loop del agente.
+
+# Si no hay eventos en este intervalo se emite {"type": "ping"} para que los
+# proxies intermedios no corten la conexión por inactividad.
+PING_INTERVAL_SECONDS = 10.0
+
+STREAM_ERROR_DETAIL = (
+    "No pudimos completar la investigación en este momento. "
+    "Tu pregunta no se perdió: puedes reintentar."
+)
+
+# Sentinela interno de fin de stream (nunca se serializa).
+_STREAM_DONE = object()
+
+
+def _ndjson_line(event: dict[str, Any]) -> str:
+    return json.dumps(event, ensure_ascii=False, default=str) + "\n"
+
+
+@app.post("/investigate/stream", dependencies=[Depends(check_rate_limit)])
+async def investigate_stream_route(req: InvestigateRequest) -> StreamingResponse:
+    """Igual que /investigate pero emitiendo progreso EN VIVO como NDJSON.
+
+    Una línea JSON por evento REAL del loop del agente (consultas a fuentes y
+    fase de ensamblado; nunca pasos simulados) y, al final, una línea
+    {"type": "result", "case_file": {...}} con el mismo contrato del POST
+    clásico, o {"type": "error", "detail": "..."} si la investigación falló.
+    Comparte la dependency de rate limit: una investigación = un cupo,
+    streaming o no.
+    """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[Any] = asyncio.Queue()
+
+    def on_event(event: dict[str, Any]) -> None:
+        # Callback SYNC del loop del agente. En el hilo del event loop se
+        # encola DIRECTO (call_soon_threadsafe aplazaría el evento a la
+        # siguiente vuelta y la línea "result" podría adelantarlo); desde otro
+        # hilo, call_soon_threadsafe es la vía segura.
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is loop:
+            queue.put_nowait(event)
+        else:
+            loop.call_soon_threadsafe(queue.put_nowait, event)
+
+    async def _run_investigation() -> None:
+        try:
+            case = await investigate(
+                req.question, candidate_id=req.candidate_id, on_event=on_event
+            )
+            queue.put_nowait({"type": "result", "case_file": case.to_contract_dict()})
+        except Exception:
+            logger.exception("la investigación en streaming falló")
+            queue.put_nowait({"type": "error", "detail": STREAM_ERROR_DETAIL})
+        finally:
+            queue.put_nowait(_STREAM_DONE)
+
+    async def _stream() -> AsyncIterator[str]:
+        task = asyncio.create_task(_run_investigation())
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=PING_INTERVAL_SECONDS)
+                except TimeoutError:
+                    yield _ndjson_line({"type": "ping"})
+                    continue
+                if event is _STREAM_DONE:
+                    break
+                yield _ndjson_line(event)
+        finally:
+            # Cliente desconectado o stream terminado: nunca dejar la task viva.
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+
+    return StreamingResponse(
+        _stream(),
+        media_type="application/x-ndjson",
+        # Anti-buffering: sin esto, proxies tipo nginx agrupan las líneas y el
+        # progreso deja de ser "en vivo".
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # Producción single-origin: la UI compilada se sirve desde el mismo FastAPI.

@@ -9,6 +9,7 @@ Contrato con la capa app:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from agent.loop import LoopConfig, run_investigation
@@ -23,6 +24,7 @@ async def investigate(
     *,
     config: LoopConfig | None = None,
     trace: dict[str, Any] | None = None,
+    on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> CaseFile:
     """Investiga la pregunta y devuelve el expediente (CaseFile) validado.
 
@@ -33,6 +35,9 @@ async def investigate(
         config: límites operacionales (default: los del producto).
         trace: dict opcional que se rellena con métricas (tokens, pasos) —
             lo usa el CLI; el orquestador puede ignorarlo.
+        on_event: callback sync opcional de progreso (eventos observables del
+            loop: consultas a fuentes y fase de ensamblado). Lo usa el endpoint
+            de streaming; el CLI y el POST clásico no lo pasan y nada cambia.
     """
     provider = build_provider()
     async with CromaClient() as croma:
@@ -43,4 +48,5 @@ async def investigate(
             croma=croma,
             config=config,
             trace=trace,
+            on_event=on_event,
         )
