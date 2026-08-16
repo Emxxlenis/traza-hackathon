@@ -59,6 +59,8 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
         )}
       </section>
 
+      {caseFile.scope_note && <p className="scope-note">{caseFile.scope_note}</p>}
+
       <InvestigationTimeline sources={caseFile.sources_consulted} />
 
       <section className="case-section">

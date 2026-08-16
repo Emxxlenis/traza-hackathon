@@ -116,6 +116,14 @@ mitad de la construcción.
 contrato v0 (`exclude_none` omite la clave `candidates` cuando no aplica, y los datetime
 UTC salen como `...Z`).
 
+Contrato v0.2: `CaseFile.scope_note` (string opcional) declara el ROL asumido para la
+entidad investigada cuando puede ser ambiguo (proveedor de contratos públicos vs entidad
+contratante — caso de una empresa pública). La genera EN CÓDIGO el loop del agente según
+qué fuentes SECOP se consultaron con el documento de la investigada (`contracts-by-provider`
+⇒ proveedor, `processes-by-entity` con ese mismo documento ⇒ contratante, ambas ⇒ ambos
+roles) — nunca la redacta el LLM. Ausente (`None` + `exclude_none`) cuando no se consultó
+SECOP para la investigada; una consulta de procesos con el NIT de OTRA entidad no cuenta.
+
 ### 7. Cosas que el diseño **no** hace todavía (a propósito)
 
 - No modela las respuestas de Croma (eso es de `croma_client`, y depende de capturas).

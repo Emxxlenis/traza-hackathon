@@ -480,8 +480,9 @@ def test_shared_nit_top_dependency_gets_verifiable_proposals():
     assert len(reduction.derived[0].contract_ids) == 4
 
 
-def test_shared_nit_without_common_prefix_labels_by_nit():
-    """Sin prefijo común razonable, la etiqueta cae a 'NIT <nit> (N dependencias)'."""
+def test_shared_nit_without_common_prefix_labels_by_top_dependency():
+    """Sin prefijo común razonable, la etiqueta usa la dependencia top por valor
+    + 'y {k} dependencias más' — NUNCA el NIT como nombre (rompía los claims)."""
     contracts = [
         make_contract("CO1.PCCNTR.999201", "GOBFICTICIO - HACIENDA", "800000020",
                       300_000_000.0, "2024-01-01"),
@@ -492,11 +493,57 @@ def test_shared_nit_without_common_prefix_labels_by_nit():
                         "contracts": contracts, "pagination": {"total": 2}}}
     reduction = reduce_contracts_by_provider(payload, {})
     top = reduction.summary["entidades"][0]
-    assert top["entidad"] == "NIT 800000020 (2 dependencias)"
+    assert top["entidad"] == "GOBFICTICIO - HACIENDA y 1 dependencia más"
+    assert "800000020" not in top["entidad"]
     assert [d["dependencia"] for d in top["dependencias"]] == [
         "GOBFICTICIO - HACIENDA",
         "Departamento Ficticio de Asuntos Varios",
     ]
+
+
+def test_shared_nit_without_common_prefix_never_duplicates_nit_in_claims():
+    """Grupo multi-nombre SIN prefijo común: ni el label ni ningún claim
+    contienen el NIT dos veces (antes: 'NIT X (N dependencias) (NIT X)')."""
+    nit = "800000040"
+    contracts = [
+        make_contract("CO1.PCCNTR.999401", "ALCALDIA FICTICIA ZONA NORTE", nit,
+                      500_000_000.0, "2024-01-10"),
+        make_contract("CO1.PCCNTR.999402", "HOSPITAL EJEMPLO DEL SUR", nit,
+                      200_000_000.0, "2024-03-20"),
+        make_contract("CO1.PCCNTR.999403", "INSTITUTO DEMO CENTRAL", nit,
+                      100_000_000.0, "2024-05-30"),
+    ]
+    payload = {"data": {"document_number": NIT_EJEMPLO, "count": 3, "capped": False,
+                        "contracts": contracts, "pagination": {"total": 3}}}
+    reduction = reduce_contracts_by_provider(payload, {})
+
+    label = reduction.summary["entidades"][0]["entidad"]
+    assert label == "ALCALDIA FICTICIA ZONA NORTE y 2 dependencias más"
+    assert nit not in label  # el fallback jamás usa el NIT como nombre
+
+    assert len(reduction.derived) == 5  # 3 del grupo + 2 de la dependencia top
+    for proposal in reduction.derived:
+        assert proposal.claim.count(nit) == 1, proposal.claim
+        assert f"NIT {nit} (" not in proposal.claim  # nunca 'NIT X (...' como nombre
+        assert_proposal_verifies(proposal)
+    # El claim de concentración sigue identificando al grupo con nombre + NIT.
+    assert "ALCALDIA FICTICIA ZONA NORTE y 2 dependencias más (NIT 800000040)" in (
+        reduction.derived[2].claim
+    )
+
+
+def test_group_label_already_containing_nit_is_not_double_tagged():
+    """Guard anti-duplicado: si el label ya trae 'NIT <nit>' (datos raros de la
+    fuente), las plantillas no anexan '(NIT <nit>)' otra vez."""
+    nit = "800000050"
+    contracts = [
+        make_contract("CO1.PCCNTR.999501", f"NIT {nit}", nit, 100_000_000.0, "2024-02-02"),
+    ]
+    payload = {"data": {"document_number": NIT_EJEMPLO, "count": 1, "capped": False,
+                        "contracts": contracts, "pagination": {"total": 1}}}
+    reduction = reduce_contracts_by_provider(payload, {})
+    for proposal in reduction.derived:
+        assert proposal.claim.count(nit) == 1, proposal.claim
 
 
 def test_shared_nit_breakdown_caps_at_top5_plus_otras():

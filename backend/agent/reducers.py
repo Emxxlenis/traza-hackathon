@@ -37,7 +37,8 @@ MAX_RELATED_PARTY_EVIDENCE = 10
 # Desglose por dependencia dentro del grupo top: todas si son ≤6, top-5 + "otras" si son más.
 MAX_DEPENDENCIES_IN_SUMMARY = 6
 TOP_DEPENDENCIES_IN_SUMMARY = 5
-# Un prefijo común de nombres más corto que esto no etiqueta el grupo (se usa "NIT <nit>").
+# Un prefijo común de nombres más corto que esto no etiqueta el grupo (se usa
+# la dependencia top por valor + "y {k} dependencias más").
 MIN_COMMON_PREFIX_CHARS = 10
 # Tokens separadores que no cierran un prefijo común ("SANTIAGO DE CALI ... -").
 _PREFIX_SEPARATOR_TOKENS = frozenset({"-", "–", "—", "/", ",", ":", "·"})
@@ -118,23 +119,37 @@ def _common_name_prefix(names: list[str]) -> str:
     return " ".join(prefix_tokens)
 
 
-def _group_label(nit: str, names: list[str]) -> str:
+def _group_label(by_name: dict[str, dict[str, Any]]) -> str:
     """Etiqueta determinista de un grupo por NIT.
 
     En Colombia las dependencias de un distrito comparten NIT (ej. 6 secretarías
     de Cali bajo 890399011): con >1 nombre normalizado distinto, la etiqueta es
-    el prefijo común si es significativo, o "NIT <nit>", con "(N dependencias)".
-    ``names`` debe venir ordenada (sorted) para cualquier desempate.
+    el prefijo común si es significativo ("SANTIAGO DE CALI DISTRITO ESPECIAL
+    (6 dependencias)"), o el nombre de la dependencia TOP POR VALOR +
+    "y {k} dependencias más". El fallback NUNCA usa el NIT como nombre: el
+    label entra en claims que ya anexan "(NIT ...)" y quedaría el identificador
+    duplicado sin ningún nombre legible.
     """
+    names = sorted(by_name)
     if len(names) == 1:
         return names[0]
     prefix = _common_name_prefix(names)
-    suffix = f"({len(names)} dependencias)"
     if len(prefix) >= MIN_COMMON_PREFIX_CHARS:
-        return f"{prefix} {suffix}"
-    if nit:
-        return f"NIT {nit} {suffix}"
-    return f"{names[0]} {suffix}"
+        return f"{prefix} ({len(names)} dependencias)"
+    top_name = _ranked_dependencies(by_name)[0][0]
+    rest = len(names) - 1
+    return f"{top_name} y {rest} {'dependencia más' if rest == 1 else 'dependencias más'}"
+
+
+def _label_with_nit(label: str, nit: str) -> str:
+    """Anexa "(NIT <nit>)" al label salvo que ya lo contenga (guard anti-duplicado).
+
+    Con el fallback de ``_group_label`` esto no debería ocurrir; queda como
+    defensa para que un claim jamás repita el mismo identificador.
+    """
+    if not nit or f"NIT {nit}" in label:
+        return label
+    return f"{label} (NIT {nit})"
 
 
 # --- Réplicas exactas de las operaciones de evidence.verify ---
@@ -216,9 +231,9 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
 
     La agrupación es por ``entity_nit``: las dependencias de un distrito
     comparten NIT, así que un grupo con >1 nombre normalizado se etiqueta por
-    prefijo común (o "NIT <nit>") + "(N dependencias)", el grupo top expone su
-    desglose por dependencia y la dependencia top por valor recibe sus propias
-    proposals derivadas.
+    prefijo común + "(N dependencias)" (o dependencia top por valor + "y {k}
+    dependencias más"), el grupo top expone su desglose por dependencia y la
+    dependencia top por valor recibe sus propias proposals derivadas.
     """
     data = _data(payload)
     contracts = [c for c in data.get("contracts") or [] if isinstance(c, dict)]
@@ -266,7 +281,7 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
             dates.append(str(date))
 
     for group in groups.values():
-        group["entity"] = _group_label(group["nit"], sorted(group["by_name"]))
+        group["entity"] = _group_label(group["by_name"])
 
     total_sum = math.fsum(all_values)
     ranked = sorted(groups.values(), key=lambda g: (-g["count"], -math.fsum(g["values"])))
@@ -344,7 +359,7 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
         top = ranked[0]
         top_values = [float(v) for v in top["values"]]
         top_ids = tuple(top["contract_ids"])
-        entity_label = top["entity"] + (f" (NIT {top['nit']})" if top["nit"] else "")
+        entity_label = _label_with_nit(top["entity"], top["nit"])
 
         pct_steps, pct = _percentage_steps(top["count"], n)
         reduction.derived.append(
@@ -411,15 +426,18 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
             dep_name, dep = _ranked_dependencies(top["by_name"])[0]
             dep_values = [float(v) for v in dep["values"]]
             dep_ids = tuple(dep["contract_ids"])
-            dep_label = dep_name + (f" (NIT {top['nit']})" if top["nit"] else "")
+            dep_label = _label_with_nit(dep_name, top["nit"])
 
             dep_pct_steps, dep_pct = _percentage_steps(dep["count"], n)
+            # El grupo se menciona por su label pelado: la dependencia ya lleva
+            # "(NIT ...)" y ambos comparten NIT — anexarlo dos veces duplicaría
+            # el identificador dentro del mismo claim.
             reduction.derived.append(
                 DerivedProposal(
                     claim=(
                         f"El {dep_pct}% de los contratos recuperados ({dep['count']} de {n}) "
                         f"corresponde a la dependencia {dep_label}, la mayor por valor dentro "
-                        f"del grupo {entity_label}{sample_note}"
+                        f"del grupo {top['entity']}{sample_note}"
                     ),
                     calculation=f"{dep['count']} / {n} * 100",
                     steps=tuple(dep_pct_steps),

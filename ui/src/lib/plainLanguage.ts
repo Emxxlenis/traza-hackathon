@@ -120,6 +120,22 @@ function endsInRound(ev: DerivedEvidence): boolean {
 
 const collapseSpaces = (s: string) => s.replace(/\s+/g, " ").trim();
 
+/**
+ * Defensive rewrite for counterpart names emitted by older backends, where a
+ * shared-NIT group without a common name prefix was labeled
+ * "NIT <nit> (N dependencias)". Rewritten as prose ("la entidad con NIT n,
+ * que agrupa k dependencias bajo un mismo NIT") so the summary sentence never
+ * repeats the same identifier twice. Current backends never produce such
+ * names (the label falls back to the top dependency's name instead).
+ */
+function readableCounterpartName(name: string): string {
+  const nit = /^NIT (\d+)/.exec(name.trim());
+  if (!nit) return name;
+  const deps = /\((\d+) dependencias?\)/.exec(name);
+  const base = `la entidad con NIT ${nit[1]}`;
+  return deps ? `${base}, que agrupa ${deps[1]} dependencias bajo un mismo NIT` : base;
+}
+
 /** Structural match: the contratante whose name is INCLUDED in the claim text. */
 function findContraparteInClaim(entities: Entity[], claim: string): Entity | null {
   const normalizedClaim = collapseSpaces(claim);
@@ -162,13 +178,15 @@ export function plainSummary(caseFile: CaseFile): string | null {
   const classified = classifyPercentage(chosen);
   if (!classified) return `En resumen: ${chosen.claim}`;
 
+  const contraparteName = readableCounterpartName(contraparte.name);
+
   if (classified.kind === "value") {
     const pct = formatPct(classified.chain.pct);
-    return `En resumen: de cada $100 que ${investigada.name} ha recibido en contratación pública, $${pct} provinieron de ${contraparte.name}.`;
+    return `En resumen: de cada $100 que ${investigada.name} ha recibido en contratación pública, $${pct} provinieron de ${contraparteName}.`;
   }
 
   const { a, b } = classified.chain;
-  return `En resumen: ${formatAmount(a)} de los ${formatAmount(b)} contratos públicos de ${investigada.name} fueron con ${contraparte.name}.`;
+  return `En resumen: ${formatAmount(a)} de los ${formatAmount(b)} contratos públicos de ${investigada.name} fueron con ${contraparteName}.`;
 }
 
 /* ------------------------------------------------------------------ */

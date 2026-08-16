@@ -117,6 +117,21 @@ LIMITS_EXHAUSTED_MESSAGE = (
     "evidencia disponible; declara en unknowns lo que quedó sin consultar."
 )
 
+# Plantillas de la scope_note (contrato v0.2). Se generan EN CÓDIGO según qué
+# fuentes SECOP se consultaron con el documento de la investigada — nunca las
+# redacta el LLM.
+SCOPE_NOTE_PROVIDER = (
+    "Esta investigación trata a {nombre} como proveedor de contratos públicos "
+    "(no como entidad contratante)."
+)
+SCOPE_NOTE_CONTRACTING = (
+    "Esta investigación trata a {nombre} como entidad contratante (no como proveedor)."
+)
+SCOPE_NOTE_BOTH = (
+    "Esta investigación examina a {nombre} en ambos roles: como proveedor de "
+    "contratos públicos y como entidad contratante."
+)
+
 
 @dataclass(frozen=True, slots=True)
 class LoopConfig:
@@ -147,6 +162,10 @@ class _State:
     limit_notes: list[str] = field(default_factory=list)
     steps_exhausted: bool = False
     tool_log: list[dict[str, Any]] = field(default_factory=list)
+    # Documento y nombre de la ENTIDAD INVESTIGADA (la resolución RUES o el
+    # NIT consultado directamente) — base de la scope_note del contrato v0.2.
+    investigated_document: str | None = None
+    investigated_name: str | None = None
 
 
 def _now() -> datetime:
@@ -286,6 +305,7 @@ async def run_investigation(
         sources_consulted=state.sources_consulted,
         degraded=state.degraded,
         limit_notes=state.limit_notes,
+        scope_note=_scope_note(state),
     )
     _fill_trace(trace, state, usage_total, llm_calls, case.status)
     return case
@@ -383,9 +403,80 @@ async def _execute_source_call(
             return _disambiguation_case(state, reduction.candidates)
         reduction = filtered
 
+    _track_investigated(state, tool_name, args, reduction)
     summary = _materialize_evidence(state, reduction, ref, depth)
     _maybe_exhaust_steps(state, summary)
     return json.dumps(summary, ensure_ascii=False, default=str)
+
+
+def _track_investigated(
+    state: _State, tool_name: str, args: dict[str, Any], reduction: Reduction
+) -> None:
+    """Registra documento y nombre de la ENTIDAD INVESTIGADA (para la scope_note).
+
+    La investigada es la entrada de la investigación: el NIT resuelto por la
+    búsqueda RUES por nombre (candidato único o elegido), o el documento de la
+    PRIMERA consulta exitosa por documento (el NIT que trae la pregunta). Las
+    entidades descubiertas después (contratantes, representante legal) llegan
+    cuando el documento ya quedó fijado y no lo tocan.
+    """
+    if tool_name == "rues_entities_by_name":
+        candidates = reduction.candidates or []
+        if state.investigated_document is None and len(candidates) == 1:
+            candidate_id = candidates[0].id
+            if candidate_id.startswith("co:nit:"):
+                state.investigated_document = candidate_id.removeprefix("co:nit:")
+                state.investigated_name = candidates[0].name
+        return
+    document = str(args.get("document_number") or "").strip()
+    if not document:
+        return
+    if state.investigated_document is None:
+        state.investigated_document = document
+    if (
+        tool_name == "rues_entity_by_nit"
+        and document == state.investigated_document
+        and state.investigated_name is None
+    ):
+        identidad = reduction.summary.get("identidad")
+        if isinstance(identidad, dict) and identidad.get("nombre"):
+            state.investigated_name = str(identidad["nombre"])
+
+
+def _scope_note(state: _State) -> str | None:
+    """Declara el ROL asumido para la investigada — generado EN CÓDIGO, nunca LLM.
+
+    Reglas (contrato v0.2): secop_contracts_by_provider consultada OK con el
+    documento de la investigada => rol proveedor; secop_processes_by_entity
+    con ese mismo documento => rol entidad contratante; ambas => ambos roles;
+    ninguna => None (la clave se omite del JSON). Una consulta de processes
+    con el NIT de OTRA entidad (p. ej. una contratante descubierta) NO cuenta.
+    """
+    document = state.investigated_document
+    if not document:
+        return None
+    as_provider = False
+    as_contracting = False
+    for entry in state.tool_log:
+        if entry.get("status") != "ok":
+            continue
+        args = entry.get("args")
+        if not isinstance(args, dict):
+            continue
+        if str(args.get("document_number") or "").strip() != document:
+            continue
+        if entry.get("tool") == "secop_contracts_by_provider":
+            as_provider = True
+        elif entry.get("tool") == "secop_processes_by_entity":
+            as_contracting = True
+    nombre = state.investigated_name or f"la entidad con NIT {document}"
+    if as_provider and as_contracting:
+        return SCOPE_NOTE_BOTH.format(nombre=nombre)
+    if as_provider:
+        return SCOPE_NOTE_PROVIDER.format(nombre=nombre)
+    if as_contracting:
+        return SCOPE_NOTE_CONTRACTING.format(nombre=nombre)
+    return None
 
 
 def _maybe_exhaust_steps(state: _State, summary: dict[str, Any] | None = None) -> None:
@@ -467,6 +558,7 @@ def assemble_case_file(
     sources_consulted: list[SourceConsulted],
     degraded: bool,
     limit_notes: list[str],
+    scope_note: str | None = None,
 ) -> CaseFile:
     """Ensambla el CaseFile validado desde el borrador estructurado del LLM.
 
@@ -474,6 +566,7 @@ def assemble_case_file(
     inexistentes se descartan con warning y todo derived se RE-verifica con
     verify_derived (defensa en profundidad: el store ya verificó al fabricar).
     Un hallazgo que se queda sin evidencia válida se descarta entero.
+    ``scope_note`` llega ya generada en código (ver _scope_note) — nunca del draft.
     """
     findings: list[Finding] = []
     entities: list[Entity] = []
@@ -562,6 +655,7 @@ def assemble_case_file(
         findings=findings,
         unknowns=unknowns,
         next_steps=next_steps,
+        scope_note=scope_note,
     )
 
 

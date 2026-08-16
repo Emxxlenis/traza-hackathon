@@ -30,6 +30,7 @@ from tests.test_agent_reducers import (
     contraloria_payload,
     empty_contracts_payload,
     entities_by_name_payload,
+    processes_payload,
     procuraduria_payload,
     rues_by_nit_payload,
 )
@@ -602,6 +603,164 @@ async def test_text_only_response_gets_nudged_to_finalize():
     assert len(provider.calls) == 2
     assert case.status == "complete"
     assert case.findings == []
+
+
+# --- scope_note (contrato v0.2): rol asumido para la investigada ---
+
+
+def processes_payload_for(document: str) -> dict[str, Any]:
+    """processes_payload con el document_number del data ajustado al consultado."""
+    payload = processes_payload()
+    payload["data"]["document_number"] = document
+    return payload
+
+
+PROVIDER_NOTE = (
+    "Esta investigación trata a Empresa Ejemplo S.A.S. como proveedor de "
+    "contratos públicos (no como entidad contratante)."
+)
+CONTRACTING_NOTE = (
+    "Esta investigación trata a Empresa Ejemplo S.A.S. como entidad contratante "
+    "(no como proveedor)."
+)
+BOTH_NOTE = (
+    "Esta investigación examina a Empresa Ejemplo S.A.S. en ambos roles: como "
+    "proveedor de contratos públicos y como entidad contratante."
+)
+
+
+async def test_scope_note_provider_role_only():
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entity_by_nit", document_number=NIT_EJEMPLO),
+            resp_tool("secop_contracts_by_provider", document_number=NIT_EJEMPLO),
+            finalize_response(
+                findings=[{"title": "t", "narrative": "n", "evidence_ids": ["ev1"]}]
+            ),
+        ]
+    )
+    croma = FakeCromaClient(
+        {
+            "entity_by_nit": rues_by_nit_payload(),
+            "contracts_by_provider": contracts_payload(),
+        }
+    )
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.scope_note == PROVIDER_NOTE
+    assert case.to_contract_dict()["scope_note"] == PROVIDER_NOTE
+
+
+async def test_scope_note_contracting_entity_role_only():
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entity_by_nit", document_number=NIT_EJEMPLO),
+            resp_tool("secop_processes_by_entity", document_number=NIT_EJEMPLO),
+            finalize_response(
+                findings=[{"title": "t", "narrative": "n", "evidence_ids": ["ev1"]}]
+            ),
+        ]
+    )
+    croma = FakeCromaClient(
+        {
+            "entity_by_nit": rues_by_nit_payload(),
+            "processes_by_entity": processes_payload_for(NIT_EJEMPLO),
+        }
+    )
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.scope_note == CONTRACTING_NOTE
+
+
+async def test_scope_note_both_roles():
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entity_by_nit", document_number=NIT_EJEMPLO),
+            resp_tool("secop_contracts_by_provider", document_number=NIT_EJEMPLO),
+            resp_tool("secop_processes_by_entity", document_number=NIT_EJEMPLO),
+            finalize_response(
+                findings=[{"title": "t", "narrative": "n", "evidence_ids": ["ev1"]}]
+            ),
+        ]
+    )
+    croma = FakeCromaClient(
+        {
+            "entity_by_nit": rues_by_nit_payload(),
+            "contracts_by_provider": contracts_payload(),
+            "processes_by_entity": processes_payload_for(NIT_EJEMPLO),
+        }
+    )
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.scope_note == BOTH_NOTE
+
+
+async def test_scope_note_absent_without_secop_for_investigated():
+    """Sin consultas SECOP para la investigada: scope_note = None y AUSENTE del JSON."""
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entity_by_nit", document_number=NIT_EJEMPLO),
+            resp_tool("procuraduria_disciplinary_records",
+                      document_number=NIT_EJEMPLO, document_type="NIT"),
+            finalize_response(
+                findings=[{"title": "t", "narrative": "n", "evidence_ids": ["ev1"]}]
+            ),
+        ]
+    )
+    croma = FakeCromaClient(
+        {
+            "entity_by_nit": rues_by_nit_payload(),
+            "disciplinary_records": procuraduria_payload("NIT"),
+        }
+    )
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.scope_note is None
+    assert "scope_note" not in case.to_contract_dict()
+
+
+async def test_scope_note_ignores_processes_of_other_entities():
+    """processes_by_entity con el NIT de OTRA entidad (una contratante descubierta
+    en los contratos) NO dispara el rol de entidad contratante."""
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entity_by_nit", document_number=NIT_EJEMPLO),
+            resp_tool("secop_contracts_by_provider", document_number=NIT_EJEMPLO),
+            resp_tool("secop_processes_by_entity", document_number="800000001"),
+            finalize_response(
+                findings=[{"title": "t", "narrative": "n", "evidence_ids": ["ev1"]}]
+            ),
+        ]
+    )
+    croma = FakeCromaClient(
+        {
+            "entity_by_nit": rues_by_nit_payload(),
+            "contracts_by_provider": contracts_payload(),
+            "processes_by_entity": processes_payload_for("800000001"),
+        }
+    )
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.scope_note == PROVIDER_NOTE  # solo proveedor: la otra entidad no cuenta
+
+
+async def test_scope_note_name_falls_back_to_nit_without_rues():
+    """Sin RUES no hay razón social: la plantilla usa 'la entidad con NIT <doc>'."""
+    provider = FakeProvider(
+        [
+            resp_tool("secop_contracts_by_provider", document_number=NIT_EJEMPLO),
+            finalize_response(
+                findings=[{"title": "t", "narrative": "n", "evidence_ids": ["ev1"]}]
+            ),
+        ]
+    )
+    croma = FakeCromaClient({"contracts_by_provider": contracts_payload()})
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.scope_note == (
+        f"Esta investigación trata a la entidad con NIT {NIT_EJEMPLO} como "
+        "proveedor de contratos públicos (no como entidad contratante)."
+    )
 
 
 async def test_model_never_finalizing_yields_partial_fallback():

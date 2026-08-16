@@ -12,6 +12,15 @@
 4. Continuación tras desambiguar: `POST /investigate` acepta `candidate_id` opcional y devuelve un
    `CaseFile` completo. (Aplica a la capa app/Pista B al integrarse.)
 
+**Changelog v0.2 (16-ago):**
+
+5. `CaseFile` gana `scope_note` opcional (string): una línea corta que declara el ROL asumido para
+   la entidad investigada cuando puede ser ambiguo (proveedor de contratos vs entidad
+   contratante — caso EMCALI). Se genera EN CÓDIGO al ensamblar el expediente, según qué fuentes
+   SECOP se consultaron con el documento de la investigada — nunca la redacta el LLM. Ausente
+   (exclude_none) cuando no se consultó SECOP para la investigada. La UI la muestra bajo
+   "Entidades".
+
 **Estado: PROVISIONAL.** Derivado del spec del Evidence Layer (objetos `direct`/`derived`), no de
 respuestas reales de Croma. Las formas de `source`, `raw_reference` y los IDs de entidad se
 ajustarán cuando existan capturas reales. Cualquier cambio a este contrato pasa por el

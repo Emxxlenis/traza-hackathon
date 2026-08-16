@@ -202,8 +202,8 @@ class CaseFile(BaseModel):
     - status = needs_disambiguation  =>  candidates[] no vacía y findings vacía
       (el contrato dice "candidates en lugar de findings").
     - cualquier otro status          =>  candidates ausente (None).
-    - `candidates` se omite del JSON cuando es None (usar to_contract_dict /
-      to_contract_json, que aplican exclude_none).
+    - `candidates` y `scope_note` se omiten del JSON cuando son None (usar
+      to_contract_dict / to_contract_json, que aplican exclude_none).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -215,6 +215,11 @@ class CaseFile(BaseModel):
     findings: list[Finding]
     unknowns: list[str]
     next_steps: list[str]
+    # Contrato v0.2: rol asumido para la entidad investigada (proveedor de
+    # contratos vs entidad contratante) cuando puede ser ambiguo. Se genera EN
+    # CÓDIGO al ensamblar el expediente — nunca la redacta el LLM. Ausente
+    # (None + exclude_none) cuando no se consultó SECOP para la investigada.
+    scope_note: str | None = None
     candidates: list[Candidate] | None = None
 
     @model_validator(mode="after")

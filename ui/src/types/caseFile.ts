@@ -106,4 +106,11 @@ export interface CaseFile {
   unknowns: string[];
   /** "Siguientes pasos" — always part of a complete/partial expediente. */
   next_steps: string[];
+  /**
+   * Contract v0.2: one short line declaring the ROLE assumed for the
+   * investigated entity (public-contract provider vs contracting entity),
+   * generated in backend code — never LLM-written. Absent when SECOP was not
+   * consulted for the investigated entity.
+   */
+  scope_note?: string;
 }
