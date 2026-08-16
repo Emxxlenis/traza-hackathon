@@ -135,6 +135,81 @@ button {
   padding: 1.1rem 1.25rem 1.6rem;
 }
 
+/* ---- Landing intro: static copy ABOVE the question box ----
+   Compact on purpose (short cards, ~0.9rem type) so the textarea stays inside
+   the first viewport at 1280×800. Only existing token pairs are used:
+   ink/card 15.17:1, ink-soft/card 7.63:1, accent-ink/card 8.72:1 — all AA. */
+.landing-goal {
+  font-size: 0.98rem;
+  line-height: 1.55;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px var(--radius-card) var(--radius-card) 6px;
+  box-shadow: var(--shadow-card);
+  padding: 0.85rem 1.1rem;
+  margin: 0.5rem 0 0;
+}
+
+.landing-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+
+.landing-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 0.8rem 0.95rem;
+}
+
+.landing-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  color: var(--accent-ink);
+}
+
+.landing-card-title svg {
+  flex-shrink: 0;
+}
+
+.landing-card-text {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* Same visual pattern as the case-file legend (.legend); only spacing and
+   the inner list are specific to the landing. */
+.landing-legend {
+  margin: 0.9rem 0 0;
+}
+
+.landing-legend-list {
+  margin: 0.7rem 0 0.3rem;
+  padding-left: 1.25rem;
+}
+
+.landing-legend-list li {
+  margin: 0.4rem 0;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .landing-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---- Screen (a): question input ---- */
 .ask-heading {
   margin: 1rem 0 0.3rem;

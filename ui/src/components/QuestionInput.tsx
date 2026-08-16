@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { USE_MOCK } from "../api/client";
+import { LandingIntro } from "./LandingIntro";
 
 // En modo real los ejemplos son preguntas reales y útiles (empresas con datos
 // públicos verificados); las ficticias solo existen en modo mock/fixtures.
@@ -36,6 +37,8 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
 
   return (
     <section className="ask">
+      <LandingIntro />
+
       <h2 className="ask-heading">Convierte una pregunta en un expediente de investigación</h2>
       <p className="ask-sub">
         Escribe una pregunta sobre una empresa colombiana y contratación pública. TRAZA consulta
