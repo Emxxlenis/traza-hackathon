@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Building2, FileText, UserSearch } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { USE_MOCK } from "../api/client";
 import { LandingIntro } from "./LandingIntro";
 
@@ -19,38 +21,38 @@ const INTENTS_TITLE = "¿No sabes por dónde empezar?";
 // En modo real los intents cargan preguntas reales y útiles (empresa con datos
 // públicos verificados); las ficticias solo existen en modo mock/fixtures y
 // conservan los ejemplos actuales con esta misma presentación.
-const INTENTS = USE_MOCK
+const INTENTS: { icon: LucideIcon; title: string; question: string }[] = USE_MOCK
   ? [
       {
-        emoji: "🏢",
+        icon: Building2,
         title: "Investigar una empresa",
         question: "¿Qué contratos públicos tiene Distribuidora Andina?",
       },
       {
-        emoji: "💰",
+        icon: FileText,
         title: "Entender sus contratos",
         question:
           "¿Por qué Empresa Ejemplo S.A.S. concentra tantos contratos con la Entidad Ficticia de Ejemplo?",
       },
       {
-        emoji: "👤",
+        icon: UserSearch,
         title: "Seguir una relación",
         question: "¿Cómo ha crecido el valor contratado por Empresa Ejemplo S.A.S. desde 2022?",
       },
     ]
   : [
       {
-        emoji: "🏢",
+        icon: Building2,
         title: "Investigar una empresa",
         question: "¿Qué contratos públicos ha recibido la empresa con NIT 901145160?",
       },
       {
-        emoji: "💰",
+        icon: FileText,
         title: "Entender sus contratos",
         question: "¿En qué entidades se concentra la contratación de la empresa con NIT 901145160? Investiga y documenta.",
       },
       {
-        emoji: "👤",
+        icon: UserSearch,
         title: "Seguir una relación",
         question: "¿Quién aparece como representante legal de la empresa con NIT 901145160 y qué antecedentes públicos tiene?",
       },
@@ -113,7 +115,7 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
       <div className="intents">
         <p className="intents-title">{INTENTS_TITLE}</p>
         <ul className="intent-list">
-          {INTENTS.map(({ emoji, title, question: intentQuestion }) => (
+          {INTENTS.map(({ icon: Icon, title, question: intentQuestion }) => (
             <li key={title}>
               {/* Carga la pregunta en el textarea, NUNCA dispara la investigación:
                   cada investigación real consume cupo de rate limit y tokens. */}
@@ -122,8 +124,8 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
                 className="intent-chip"
                 onClick={() => setQuestion(intentQuestion)}
               >
-                <span className="intent-emoji" aria-hidden="true">
-                  {emoji}
+                <span className="intent-icon" aria-hidden="true">
+                  <Icon size={18} strokeWidth={1.9} />
                 </span>
                 <span className="intent-body">
                   <span className="intent-title">{title}</span>

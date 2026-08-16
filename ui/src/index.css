@@ -353,9 +353,10 @@ button {
   box-shadow: var(--shadow-raised);
 }
 
-.intent-emoji {
-  font-size: 1.15rem;
-  line-height: 1.45;
+.intent-icon {
+  color: var(--accent-ink); /* 8.72:1 on card */
+  display: inline-flex;
+  margin-top: 0.15rem;
   flex-shrink: 0;
 }
 
