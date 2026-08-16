@@ -538,7 +538,9 @@ def _materialize_evidence(
     store = state.store
     contract_refs: dict[str, str] = {}
     for contract_id in reduction.contract_ids:
-        contract_ref = store.register_contract_ref(contract_id, ref)
+        contract_ref = store.register_contract_ref(
+            contract_id, ref, url=reduction.contract_urls.get(contract_id)
+        )
         if contract_ref:
             contract_refs[contract_id] = contract_ref
 
@@ -690,7 +692,31 @@ def assemble_case_file(
         unknowns=unknowns,
         next_steps=next_steps,
         scope_note=scope_note,
+        source_urls=_cited_source_urls(findings, store),
     )
+
+
+def _cited_source_urls(findings: list[Finding], store: EvidenceStore) -> dict[str, str] | None:
+    """Mapa ref de contrato → URL oficial (contrato v0.3), generado EN CÓDIGO.
+
+    SOLO entran los contratos citados en sources de alguna evidencia del
+    expediente y cuya URL vino en el payload crudo. Sin contratos citados (o
+    sin urls en la fuente) devuelve None y la clave se omite del JSON.
+    """
+    urls: dict[str, str] = {}
+    for finding in findings:
+        for evidence in finding.evidence:
+            if isinstance(evidence, DerivedEvidence):
+                sources = evidence.sources
+            else:
+                sources = [evidence.source]
+            for source in sources:
+                if source in urls:
+                    continue
+                url = store.contract_url(source)
+                if url:
+                    urls[source] = url
+    return urls or None
 
 
 def _fill_trace(

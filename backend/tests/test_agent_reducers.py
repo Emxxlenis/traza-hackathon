@@ -382,6 +382,29 @@ def test_contracts_reducer_empty_payload():
     assert reduction.contract_ids == []
 
 
+def test_contracts_reducer_captures_contract_urls():
+    """v0.3: el reducer captura {contract_id: url} del payload crudo; los
+    contratos sin url simplemente no aparecen en el mapa."""
+    payload = contracts_payload()
+    payload["data"]["contracts"][3]["url"] = None  # la fuente no siempre trae url
+    del payload["data"]["contracts"][4]["url"]
+    reduction = reduce_contracts_by_provider(payload, {"document_number": NIT_EJEMPLO})
+
+    assert reduction.contract_urls == {
+        f"CO1.PCCNTR.99900{i}": f"https://secop.example/proceso/CO1.PCCNTR.99900{i}"
+        for i in (1, 2, 3)
+    }
+    # Los contract_ids no se ven afectados: los 5 siguen disponibles para refs.
+    assert len(reduction.contract_ids) == 5
+
+
+def test_contracts_reducer_empty_payload_has_no_contract_urls():
+    reduction = reduce_contracts_by_provider(
+        empty_contracts_payload(), {"document_number": NIT_EJEMPLO}
+    )
+    assert reduction.contract_urls == {}
+
+
 # --- SECOP contratos: NIT compartido por varias dependencias ---
 
 NIT_DISTRITO = "800000010"  # NIT ficticio compartido por 3 dependencias

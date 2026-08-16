@@ -763,6 +763,92 @@ async def test_scope_note_name_falls_back_to_nit_without_rues():
     )
 
 
+# --- source_urls (contrato v0.3): links oficiales de contratos citados ---
+
+
+async def test_source_urls_filtered_to_cited_contract_refs():
+    """v0.3: source_urls contiene SOLO los contratos citados en sources de la
+    evidencia del expediente (no los 5 registrados en el store), con la url
+    oficial capturada del payload crudo."""
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entity_by_nit", document_number=NIT_EJEMPLO),
+            resp_tool("secop_contracts_by_provider", document_number=NIT_EJEMPLO),
+            finalize_response(
+                findings=[
+                    {
+                        "title": "Concentración por conteo",
+                        "narrative": "La entidad top concentra los contratos.",
+                        # ev5: derived pct por conteo, respaldada por los 3
+                        # contratos de Entidad Ficticia Uno.
+                        "evidence_ids": ["ev5"],
+                    }
+                ]
+            ),
+        ]
+    )
+    croma = FakeCromaClient(
+        {
+            "entity_by_nit": rues_by_nit_payload(),
+            "contracts_by_provider": contracts_payload(),
+        }
+    )
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    cited = {
+        f"croma:secop:contract:CO1.PCCNTR.99900{i}" for i in (1, 2, 3)
+    }
+    assert case.source_urls is not None
+    assert set(case.source_urls) == cited  # 999004/999005 registrados pero NO citados
+    for ref, url in case.source_urls.items():
+        contract_id = ref.removeprefix("croma:secop:contract:")
+        assert url == f"https://secop.example/proceso/{contract_id}"
+    # El JSON del contrato lleva la clave tal cual.
+    assert case.to_contract_dict()["source_urls"] == case.source_urls
+
+
+async def test_source_urls_absent_without_cited_contracts():
+    """Expediente sin contratos citados (solo evidencia RUES): source_urls es
+    None y la clave se OMITE del JSON (exclude_none, como candidates)."""
+    provider = FakeProvider(
+        [
+            resp_tool("rues_entity_by_nit", document_number=NIT_EJEMPLO),
+            finalize_response(
+                findings=[
+                    {"title": "Identidad registral", "narrative": "Empresa activa en RUES.",
+                     "evidence_ids": ["ev1"]}
+                ]
+            ),
+        ]
+    )
+    croma = FakeCromaClient({"entity_by_nit": rues_by_nit_payload()})
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.source_urls is None
+    assert "source_urls" not in case.to_contract_dict()
+
+
+async def test_source_urls_absent_with_zero_contracts_result():
+    """SECOP responde 0 contratos: el cero entra como hecho pero no hay refs de
+    contrato, así que el JSON no lleva source_urls."""
+    provider = FakeProvider(
+        [
+            resp_tool("secop_contracts_by_provider", document_number=NIT_EJEMPLO),
+            finalize_response(
+                findings=[
+                    {"title": "Sin contratos en SECOP", "narrative": "Cero registros.",
+                     "evidence_ids": ["ev1"]}
+                ]
+            ),
+        ]
+    )
+    croma = FakeCromaClient({"contracts_by_provider": empty_contracts_payload()})
+    case = await run_investigation(QUESTION, provider=provider, croma=croma)
+
+    assert case.source_urls is None
+    assert "source_urls" not in case.to_contract_dict()
+
+
 async def test_model_never_finalizing_yields_partial_fallback():
     provider = FakeProvider(
         [

@@ -408,6 +408,25 @@ def test_case_file_omits_candidates_key_when_not_disambiguating():
     assert "candidates" not in dumped
 
 
+def test_case_file_source_urls_round_trip_and_omission():
+    """Contrato v0.3: source_urls serializa tal cual y hace round-trip; cuando
+    es None la clave se omite del JSON (exclude_none)."""
+    urls = {
+        "croma:secop:contract:123": "https://secop.example/proceso/123",
+        "croma:secop:contract:456": "https://secop.example/proceso/456",
+    }
+    case = make_case_file(source_urls=urls)
+    dumped = case.to_contract_dict()
+    assert dumped["source_urls"] == urls
+
+    reloaded = CaseFile.model_validate_json(case.to_contract_json())
+    assert reloaded == case
+    assert reloaded.source_urls == urls
+
+    # Sin contratos citados la clave no existe en el JSON.
+    assert "source_urls" not in make_case_file().to_contract_dict()
+
+
 def test_case_file_rejects_unknown_status():
     with pytest.raises(ValidationError):
         make_case_file(status="verdict")

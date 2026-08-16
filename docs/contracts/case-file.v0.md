@@ -21,6 +21,14 @@
    (exclude_none) cuando no se consultó SECOP para la investigada. La UI la muestra bajo
    "Entidades".
 
+**Changelog v0.3 (16-ago):**
+
+6. `CaseFile` gana `source_urls` opcional (`dict[str,str]`): mapa de SourceRef de contrato
+   (`croma:secop:contract:<id>`) → URL oficial del proceso en SECOP, poblado EN CÓDIGO al
+   ensamblar y SOLO para contratos citados en la evidencia del expediente. Ausente
+   (exclude_none) si no aplica. La UI lo usa para "Ver contrato" / "Ver fuente oficial" —
+   la verificabilidad como acción de un clic.
+
 **Estado: PROVISIONAL.** Derivado del spec del Evidence Layer (objetos `direct`/`derived`), no de
 respuestas reales de Croma. Las formas de `source`, `raw_reference` y los IDs de entidad se
 ajustarán cuando existan capturas reales. Cualquier cambio a este contrato pasa por el

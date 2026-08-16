@@ -84,6 +84,9 @@ class Reduction:
     discovered: list[DiscoveredEntity] = field(default_factory=list)
     candidates: list[Candidate] | None = None
     contract_ids: list[str] = field(default_factory=list)
+    # URL oficial por contrato (contrato v0.3): {contract_id: url} capturado
+    # del payload crudo; los contratos sin url simplemente no aparecen.
+    contract_urls: dict[str, str] = field(default_factory=dict)
 
 
 def _data(payload: Any) -> dict[str, Any]:
@@ -244,6 +247,12 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
     n = len(contracts)
 
     contract_ids = [str(c.get("contract_id")) for c in contracts if c.get("contract_id")]
+    # URL oficial por contrato (contrato v0.3): solo los que traen url en el crudo.
+    contract_urls = {
+        str(c["contract_id"]): str(c["url"])
+        for c in contracts
+        if c.get("contract_id") and c.get("url")
+    }
 
     # Agregado por entidad contratante (conteo, suma de value) — en código.
     # La clave es entity_nit: en Colombia las dependencias de un distrito
@@ -338,7 +347,9 @@ def reduce_contracts_by_provider(payload: Any, args: dict[str, Any]) -> Reductio
             "antiguos, bajo otra identificación o en otros sistemas; decláralo en unknowns."
         )
 
-    reduction = Reduction(summary=summary, contract_ids=contract_ids)
+    reduction = Reduction(
+        summary=summary, contract_ids=contract_ids, contract_urls=contract_urls
+    )
 
     sample_note = " (muestra capada)" if capped else ""
     if contracts:

@@ -220,6 +220,12 @@ class CaseFile(BaseModel):
     # CÓDIGO al ensamblar el expediente — nunca la redacta el LLM. Ausente
     # (None + exclude_none) cuando no se consultó SECOP para la investigada.
     scope_note: str | None = None
+    # Contrato v0.3: mapa SourceRef de contrato ("croma:secop:contract:<id>")
+    # → URL oficial en SECOP, capturada del payload crudo. Se puebla EN CÓDIGO
+    # al ensamblar, SOLO para contratos citados en sources de alguna evidencia
+    # del expediente. Ausente (None + exclude_none) cuando no hay contratos
+    # citados o la fuente no trae url.
+    source_urls: dict[str, str] | None = None
     candidates: list[Candidate] | None = None
 
     @model_validator(mode="after")

@@ -45,6 +45,7 @@ class EvidenceStore:
     def __init__(self) -> None:
         self._raw: dict[str, RawResponse] = {}
         self._contract_refs: dict[str, str] = {}  # ref de contrato -> ref del raw padre
+        self._contract_urls: dict[str, str] = {}  # ref de contrato -> url oficial (v0.3)
         self._evidence: dict[str, Evidence] = {}
         self._raw_count = 0
         self._evidence_count = 0
@@ -58,9 +59,13 @@ class EvidenceStore:
         self._raw[ref] = raw
         return ref
 
-    def register_contract_ref(self, contract_id: str, raw_ref: str) -> str | None:
+    def register_contract_ref(
+        self, contract_id: str, raw_ref: str, url: str | None = None
+    ) -> str | None:
         """Registra el ref real de un contrato (croma:secop:contract:<id>).
 
+        ``url`` es la URL oficial del contrato en la fuente (contrato v0.3);
+        se acumula para que el ensamblado construya ``CaseFile.source_urls``.
         Devuelve None (con log) si el id no puede formar un SourceRef válido o
         si el raw padre no existe.
         """
@@ -73,7 +78,13 @@ class EvidenceStore:
             logger.warning("contract_id %r no forma un SourceRef válido; se omite", contract_id)
             return None
         self._contract_refs[ref] = raw_ref
+        if url:
+            self._contract_urls[ref] = url
         return ref
+
+    def contract_url(self, ref: str) -> str | None:
+        """URL oficial registrada para un ref de contrato, si la fuente la trajo."""
+        return self._contract_urls.get(ref)
 
     def has_ref(self, ref: str) -> bool:
         """True si el ref apunta a un raw ingerido o a un contrato registrado."""

@@ -53,8 +53,26 @@ function uniqueInstitutions(sources: SourceConsulted[]): SourceCheck[] {
  * timeline, ids, calculations) lives inside closed <details> — nothing is
  * removed, it only stops being the first level of reading.
  */
+/**
+ * True when some derived evidence in the case file claims a contractual
+ * concentration ("concentra", case-insensitive) — the trigger for the sober
+ * interpretive line under the plain summary.
+ */
+function hasConcentrationClaim(caseFile: CaseFile): boolean {
+  return caseFile.findings.some((finding) =>
+    finding.evidence.some(
+      (ev) => ev.type === "derived" && ev.claim.toLowerCase().includes("concentra"),
+    ),
+  );
+}
+
+// Interpretive caveat (verbatim copy): concentration is shown, never explained.
+const CONCENTRATION_CAVEAT =
+  "Esto demuestra concentración contractual, pero no explica por sí solo por qué fueron adjudicados esos contratos.";
+
 export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps) {
   const summary = plainSummary(caseFile);
+  const showCaveat = hasConcentrationClaim(caseFile);
   const institutions = uniqueInstitutions(caseFile.sources_consulted);
   return (
     <article className="case-file">
@@ -84,6 +102,7 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
       </details>
 
       {summary && <p className="plain-summary">{summary}</p>}
+      {showCaveat && <p className="summary-caveat">{CONCENTRATION_CAVEAT}</p>}
 
       <section className="case-section">
         <h3 className="section-title">Entidades</h3>
@@ -125,7 +144,11 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
                   <p className="finding-narrative">{finding.narrative}</p>
                   <ul className="evidence-list">
                     {finding.evidence.map((evidence, i) => (
-                      <EvidenceItem key={`${finding.id}-${i}`} evidence={evidence} />
+                      <EvidenceItem
+                        key={`${finding.id}-${i}`}
+                        evidence={evidence}
+                        sourceUrls={caseFile.source_urls}
+                      />
                     ))}
                   </ul>
                 </div>

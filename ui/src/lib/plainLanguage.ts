@@ -209,7 +209,8 @@ const SOURCE_LABELS: ReadonlyArray<readonly [string, string]> = [
   ["croma:contraloria:fiscal-records", "Contraloría — Antecedentes fiscales"],
 ];
 
-const CONTRACT_PREFIX = "croma:secop:contract:";
+/** SourceRef prefix of a real SECOP contract ("croma:secop:contract:<id>"). */
+export const CONTRACT_PREFIX = "croma:secop:contract:";
 
 /** Maps a technical source id to a readable label; the id itself never disappears. */
 export function sourceLabel(id: string): SourceLabel {
@@ -225,6 +226,48 @@ export function sourceLabel(id: string): SourceLabel {
 /* ------------------------------------------------------------------ */
 /* 3. Plain-language translation of a derived calculation              */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Human explanation of a derived calculation for the audit layer ("Cómo lo
+ * calculamos"): one structural sentence plus the arithmetic on its own line.
+ * Built ONLY from the reducer chain patterns (same structural matching as
+ * plainCalculation); an unrecognized chain returns null and the UI falls back
+ * to the technical detail alone.
+ */
+export interface HumanCalculation {
+  /** Plain sentence describing what was computed. */
+  sentence: string;
+  /** The arithmetic itself, e.g. "12 ÷ 47 = 25,5%" or "Total: $600.000.000". */
+  formula: string;
+}
+
+export function humanCalculation(ev: DerivedEvidence): HumanCalculation | null {
+  const steps = ev.calculation_steps;
+  if (!steps || steps.length === 0) return null;
+
+  if (steps.length === 1 && steps[0].operation === "sum") {
+    return {
+      sentence: `Sumamos los ${steps[0].inputs.length} valores de los contratos listados.`,
+      formula: `Total: $${formatAmount(steps[0].output)}`,
+    };
+  }
+
+  const classified = classifyPercentage(ev);
+  if (!classified) return null;
+
+  const { a, b, pct } = classified.chain;
+  const formula = `${formatAmount(a)} ÷ ${formatAmount(b)} = ${formatPct(pct)}%`;
+  if (classified.kind === "count") {
+    return {
+      sentence: `Encontramos ${formatAmount(a)} contratos de esta entidad entre los ${formatAmount(b)} contratos recuperados.`,
+      formula,
+    };
+  }
+  return {
+    sentence: `Los contratos de esta entidad suman $${formatAmount(a)} de los $${formatAmount(b)} recuperados.`,
+    formula,
+  };
+}
 
 /**
  * Translates a derived evidence's calculation chain into one plain sentence.

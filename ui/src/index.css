@@ -149,6 +149,40 @@ button {
   padding: 1.1rem 1.25rem 1.6rem;
 }
 
+/* ---- Educación del espacio de preguntas: bloque compacto ANTES de
+   "¿Cómo funciona?". Título pequeño + 5 preguntas en dos columnas (una en
+   móvil). ink-soft sobre paper = 7.30:1 — par existente, AA. */
+.ask-examples {
+  margin: 0 0 1.6rem;
+}
+
+.ask-examples-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.ask-examples-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 1.5rem;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.ask-examples-list li {
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .ask-examples-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---- Landing docs: compact copy BELOW the question box ----
    The product goes first: invitation + textarea + intents live in the first
    viewport (1280×800 desktop, ~700px on 375 mobile); this documentation sits
@@ -652,6 +686,16 @@ button {
   margin: 1.1rem 0 0;
 }
 
+/* Línea interpretativa bajo el resumen: sobria, sin colores de alerta —
+   muestra el límite de lo que la concentración demuestra, nunca acusa.
+   ink-soft sobre paper = 7.30:1 — par existente, AA. */
+.summary-caveat {
+  margin: 0.6rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
 .case-section {
   margin-top: 2rem;
 }
@@ -1070,6 +1114,67 @@ button {
   background: var(--card);
 }
 
+/* Bloque humano de la capa de auditoría: frase estructural + la aritmética
+   en línea aparte. Va ANTES del detalle técnico. */
+.human-calc {
+  margin: 0.4rem 0 0.65rem;
+}
+
+.human-calc-sentence {
+  margin: 0.15rem 0 0.1rem;
+  line-height: 1.55;
+}
+
+.human-calc-formula {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* Detalle técnico: tercer nivel plegado dentro de la capa de auditoría.
+   Todo lo crudo (fracción, pasos $k, ids, raw_reference) vive aquí. */
+.tech-detail {
+  margin: 0.35rem 0 0.55rem;
+}
+
+.tech-detail > summary {
+  cursor: pointer;
+  color: var(--accent-ink);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.tech-detail > summary::marker {
+  color: var(--accent);
+}
+
+.tech-detail-body {
+  padding: 0.3rem 0 0.2rem;
+}
+
+/* Link a la fuente oficial (contrato v0.3): siempre en pestaña nueva.
+   accent sobre well = 4.86:1 y sobre card = 5.17:1 — AA en ambos fondos. */
+.source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.source-link:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+
+.source-link svg {
+  flex-shrink: 0;
+}
+
 .calculation-steps {
   margin: 0.3rem 0 0.55rem;
 }
@@ -1220,4 +1325,14 @@ button {
 
 .case-footer {
   margin-top: 2.25rem;
+}
+
+/* ---- Tacto móvil: todos los <summary> plegables del expediente con área
+   táctil cómoda (~44px: padding vertical 0.7rem + línea de ~22px).
+   .finding-summary ya supera 44px con su propio padding y se excluye. */
+@media (max-width: 640px) {
+  .case-file summary:not(.finding-summary) {
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+  }
 }

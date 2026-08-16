@@ -4,6 +4,19 @@
 // no "mejorar" redacción. Cada literal vive en una sola línea a propósito
 // para que un diff textual contra el brief sea trivial.
 
+// Educación del espacio de preguntas: título pequeño + 5 preguntas verbatim
+// del brief, ANTES de "¿Cómo funciona?". Solo enseñan el rango de lo posible;
+// no cargan el textarea (eso lo hacen los intents del cuadro de pregunta).
+const ASK_EXAMPLES_TITLE = "Puedes preguntar cosas como:";
+
+const ASK_EXAMPLES = [
+  "¿Cuántos contratos ha recibido esta empresa?",
+  "¿Con qué entidades concentra su contratación?",
+  "¿Quién aparece como representante legal?",
+  "¿Hay antecedentes registrados?",
+  "¿Qué relación hay entre esta empresa y esta entidad pública?",
+] as const;
+
 const HOW_TITLE = "¿Cómo funciona?";
 
 const STEPS = [
@@ -37,6 +50,15 @@ const NOTES = [
 export function LandingIntro() {
   return (
     <div className="landing-intro">
+      <div className="ask-examples">
+        <h2 className="ask-examples-title">{ASK_EXAMPLES_TITLE}</h2>
+        <ul className="ask-examples-list">
+          {ASK_EXAMPLES.map((question) => (
+            <li key={question}>{question}</li>
+          ))}
+        </ul>
+      </div>
+
       <h2 className="how-title">{HOW_TITLE}</h2>
 
       <div className="how-steps">

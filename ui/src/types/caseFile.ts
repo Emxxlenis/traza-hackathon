@@ -113,4 +113,11 @@ export interface CaseFile {
    * consulted for the investigated entity.
    */
   scope_note?: string;
+  /**
+   * Contract v0.3: map from contract SourceRef ("croma:secop:contract:<id>")
+   * to its official source URL, captured from the raw payload in backend
+   * code. Only contracts cited in evidence sources appear. Absent on
+   * pre-v0.3 case files or when no cited contract carries a URL.
+   */
+  source_urls?: Record<string, string>;
 }
