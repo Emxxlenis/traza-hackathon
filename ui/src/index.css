@@ -814,6 +814,17 @@ button {
   transform: rotate(90deg);
 }
 
+/* Numeración visual de hallazgos: "01", "02"… — discreta, mono y gris.
+   ink-soft sobre card = 7.63:1 (par existente, AA). */
+.finding-number {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+  margin-right: -0.35rem; /* compensa el gap del summary: el número queda pegado al título */
+}
+
 .finding-title {
   font-weight: 600;
   flex: 1;
@@ -917,25 +928,57 @@ button {
   word-break: break-word;
 }
 
-/* Plain-language companion line inside the calculation block */
+/* Plain-language companion line — nivel 1, siempre visible */
 .plain-calc {
   margin: 0.1rem 0 0.55rem;
   font-size: 0.9rem;
   color: var(--ink);
 }
 
-.calculation-steps {
-  margin: 0.3rem 0 0.55rem;
+/* Nivel 1: línea de fuente humana, sin id técnico.
+   ink-soft sobre paper (fondo de .evidence) = 7.30:1 — par existente, AA. */
+.evidence-source-human {
+  margin: 0.35rem 0 0;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
 }
 
-.calculation-steps summary {
+/* ---- Capa de auditoría (nivel 2): TODO lo técnico, plegado por defecto.
+   Fondo well + borde para que se lea como capa técnica; los bloques mono
+   internos pasan a fondo card para no fundirse con el well. Solo pares
+   existentes: accent-ink 8.72:1, ink 15.17:1, ink-soft 7.63:1 sobre card. */
+.evidence-audit {
+  margin-top: 0.65rem;
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.evidence-audit > summary {
   cursor: pointer;
   color: var(--accent-ink);
   font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.5rem 0.85rem;
 }
 
-.calculation-steps summary::marker {
+.evidence-audit > summary::marker {
   color: var(--accent);
+}
+
+.evidence-audit-body {
+  padding: 0.15rem 0.85rem 0.8rem;
+  border-top: 1px solid var(--line);
+}
+
+.evidence-audit .calculation,
+.evidence-audit .calculation-step-list,
+.evidence-audit code {
+  background: var(--card);
+}
+
+.calculation-steps {
+  margin: 0.3rem 0 0.55rem;
 }
 
 .calculation-step-list {
@@ -975,6 +1018,71 @@ button {
 
 .evidence-sources li {
   margin: 0.25rem 0;
+}
+
+/* ---- "¿De dónde sale?": checklist compacto de fuentes únicas ----
+   Una línea por institución; el estado va en texto, no solo en símbolo.
+   fact-bg sobre paper = 4.80:1 e ink-soft sobre paper = 7.30:1 — pares
+   existentes (mismos de .timeline-status), AA. */
+.source-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.source-check {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+}
+
+.source-check-name {
+  font-weight: 600;
+  min-width: 7.5rem;
+}
+
+.source-check-status {
+  color: var(--fact-bg);
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+/* "no respondió": gris neutro, nunca alarmante */
+.source-check-silent {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+
+/* Nota discreta cuando una institución respondió unas consultas y otras no */
+.source-check-note {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+/* Ruta completa de la investigación, plegada bajo el checklist */
+.route-details {
+  margin-top: 0.9rem;
+}
+
+.route-details > summary {
+  cursor: pointer;
+  color: var(--accent-ink);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.route-details > summary::marker {
+  color: var(--accent);
+}
+
+/* La timeline vive dentro tal como existe; solo se compacta su margen de sección. */
+.route-details .timeline-section {
+  margin-top: 0.9rem;
 }
 
 /* Unknowns and next steps — always visible; dense text breathes here */

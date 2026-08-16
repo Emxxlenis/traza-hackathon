@@ -1,5 +1,5 @@
 import type { CalculationStep, Evidence } from "../types/caseFile";
-import { plainCalculation } from "../lib/plainLanguage";
+import { plainCalculation, sourceLabel } from "../lib/plainLanguage";
 import { SourceRef } from "./SourceRef";
 
 interface EvidenceItemProps {
@@ -16,12 +16,22 @@ function formatStep(step: CalculationStep, index: number): string {
 }
 
 /**
- * One evidence object inside a finding.
- * - direct  → badge "HECHO" + source + raw reference.
- * - derived → badge "INFERENCIA" + visible calculation chain + expandable sources.
+ * One evidence object, in two reading layers:
+ * - Layer 1 (always visible, human): badge HECHO/INFERENCIA + claim, the
+ *   plain-language calculation line for derived evidence, and ONE readable
+ *   source line without technical ids.
+ * - Layer 2 (audit, <details> closed by default): EVERYTHING technical —
+ *   full source ids, raw_reference, raw calculation, $k steps and the
+ *   complete source list. Nothing is dropped; it only moves down a layer.
  */
 export function EvidenceItem({ evidence }: EvidenceItemProps) {
   const plainCalc = evidence.type === "derived" ? plainCalculation(evidence) : null;
+
+  // Human source line (level 1): readable label only, never the technical id.
+  const primarySource = evidence.type === "direct" ? evidence.source : evidence.sources[0];
+  const humanSource = primarySource ? sourceLabel(primarySource).label : null;
+  const extraSources = evidence.type === "derived" ? Math.max(evidence.sources.length - 1, 0) : 0;
+
   return (
     <li className={`evidence evidence-${evidence.type}`}>
       <div className="evidence-head">
@@ -37,46 +47,64 @@ export function EvidenceItem({ evidence }: EvidenceItemProps) {
         <p className="evidence-claim">{evidence.claim}</p>
       </div>
 
-      {evidence.type === "direct" ? (
-        <div className="evidence-body">
-          <p className="evidence-source">
-            <span className="evidence-field-label">Fuente:</span>{" "}
-            <SourceRef id={evidence.source} />
+      <div className="evidence-body">
+        {plainCalc && <p className="plain-calc">{plainCalc}</p>}
+
+        {humanSource && (
+          <p className="evidence-source-human">
+            Fuente oficial: {humanSource}
+            {extraSources > 0 &&
+              ` · y ${extraSources} ${extraSources === 1 ? "fuente más" : "fuentes más"}`}
           </p>
-          <p className="evidence-raw">
-            <span className="evidence-field-label">Referencia:</span>{" "}
-            <code>{evidence.raw_reference}</code>
-          </p>
-        </div>
-      ) : (
-        <div className="evidence-body">
-          <p className="evidence-field-label">Cálculo:</p>
-          <pre className="calculation">{evidence.calculation}</pre>
-          {plainCalc && <p className="plain-calc">{plainCalc}</p>}
-          {evidence.calculation_steps && evidence.calculation_steps.length > 0 && (
-            <details className="calculation-steps">
-              <summary>Pasos del cálculo ({evidence.calculation_steps.length})</summary>
-              <ol className="calculation-step-list">
-                {evidence.calculation_steps.map((step, i) => (
-                  <li key={i}>
-                    <code>{formatStep(step, i)}</code>
-                  </li>
-                ))}
-              </ol>
-            </details>
-          )}
-          <details className="evidence-sources">
-            <summary>Fuentes del cálculo ({evidence.sources.length})</summary>
-            <ul>
-              {evidence.sources.map((source) => (
-                <li key={source}>
-                  <SourceRef id={source} />
-                </li>
-              ))}
-            </ul>
-          </details>
-        </div>
-      )}
+        )}
+
+        <details className="evidence-audit">
+          <summary>¿Cómo se obtuvo este hallazgo?</summary>
+          <div className="evidence-audit-body">
+            {evidence.type === "direct" ? (
+              <>
+                <p className="evidence-source">
+                  <span className="evidence-field-label">Fuente:</span>{" "}
+                  <SourceRef id={evidence.source} />
+                </p>
+                <p className="evidence-raw">
+                  <span className="evidence-field-label">Referencia:</span>{" "}
+                  <code>{evidence.raw_reference}</code>
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="evidence-field-label">Cálculo:</p>
+                <pre className="calculation">{evidence.calculation}</pre>
+                {evidence.calculation_steps && evidence.calculation_steps.length > 0 && (
+                  <div className="calculation-steps">
+                    <p className="evidence-field-label">
+                      Pasos del cálculo ({evidence.calculation_steps.length})
+                    </p>
+                    <ol className="calculation-step-list">
+                      {evidence.calculation_steps.map((step, i) => (
+                        <li key={i}>
+                          <code>{formatStep(step, i)}</code>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                <details className="evidence-sources">
+                  <summary>Fuentes del cálculo ({evidence.sources.length})</summary>
+                  <ul>
+                    {evidence.sources.map((source) => (
+                      <li key={source}>
+                        <SourceRef id={source} />
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </>
+            )}
+          </div>
+        </details>
+      </div>
     </li>
   );
 }

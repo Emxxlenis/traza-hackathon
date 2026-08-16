@@ -1,6 +1,6 @@
 import { Info } from "lucide-react";
-import type { CaseFile } from "../types/caseFile";
-import { plainSummary } from "../lib/plainLanguage";
+import type { CaseFile, SourceConsulted } from "../types/caseFile";
+import { plainSummary, sourceLabel } from "../lib/plainLanguage";
 import { EvidenceItem } from "./EvidenceItem";
 import { InvestigationTimeline } from "./InvestigationTimeline";
 
@@ -9,9 +9,53 @@ interface CaseFileViewProps {
   onNewInvestigation: () => void;
 }
 
-/** Screen (c): the expediente. Findings as an expandable hierarchical list; unknowns and next steps always visible. */
+/** Short institution names for the "¿De dónde sale?" checklist. */
+const INSTITUTION_NAMES: Record<string, string> = {
+  rues: "RUES",
+  secop: "SECOP",
+  procuraduria: "Procuraduría",
+  contraloria: "Contraloría",
+};
+
+/** "croma:secop:contracts-by-provider" → "SECOP"; unknown ids fall back to the readable label. */
+function institutionName(sourceId: string): string {
+  const segments = sourceId.split(":");
+  if (segments[0] === "croma" && segments[1] && INSTITUTION_NAMES[segments[1]]) {
+    return INSTITUTION_NAMES[segments[1]];
+  }
+  return sourceLabel(sourceId).label.split(" — ")[0];
+}
+
+interface SourceCheck {
+  name: string;
+  /** Consultations answered / total for this institution; per-step detail lives in the timeline. */
+  okCount: number;
+  total: number;
+}
+
+/** One line per unique institution consulted, in first-consultation order. */
+function uniqueInstitutions(sources: SourceConsulted[]): SourceCheck[] {
+  const byName = new Map<string, SourceCheck>();
+  for (const s of sources) {
+    const name = institutionName(s.source);
+    const entry = byName.get(name) ?? { name, okCount: 0, total: 0 };
+    entry.total += 1;
+    if (s.status === "ok") entry.okCount += 1;
+    byName.set(name, entry);
+  }
+  return [...byName.values()];
+}
+
+/**
+ * Screen (c): the expediente, in two reading layers. The human layer reads
+ * top-to-bottom: question → summary → entities → numbered findings → where
+ * the data comes from → unknowns → next steps. The technical layer (full
+ * timeline, ids, calculations) lives inside closed <details> — nothing is
+ * removed, it only stops being the first level of reading.
+ */
 export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps) {
   const summary = plainSummary(caseFile);
+  const institutions = uniqueInstitutions(caseFile.sources_consulted);
   return (
     <article className="case-file">
       <header className="case-header">
@@ -61,8 +105,6 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
 
       {caseFile.scope_note && <p className="scope-note">{caseFile.scope_note}</p>}
 
-      <InvestigationTimeline sources={caseFile.sources_consulted} />
-
       <section className="case-section">
         <h3 className="section-title">Hallazgos</h3>
         {caseFile.findings.length === 0 ? (
@@ -72,6 +114,7 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
             {caseFile.findings.map((finding, index) => (
               <details key={finding.id} className="finding" open={index === 0}>
                 <summary className="finding-summary">
+                  <span className="finding-number">{String(index + 1).padStart(2, "0")}</span>
                   <span className="finding-title">{finding.title}</span>
                   <span className="finding-count">
                     {finding.evidence.length}{" "}
@@ -90,6 +133,37 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
             ))}
           </div>
         )}
+      </section>
+
+      <section className="case-section">
+        <h3 className="section-title">¿De dónde sale?</h3>
+        {institutions.length === 0 ? (
+          <p className="empty-note">No se registraron consultas.</p>
+        ) : (
+          <ul className="source-checklist">
+            {institutions.map(({ name, okCount, total }) => {
+              const ok = okCount > 0;
+              const silent = total - okCount;
+              return (
+                <li key={name} className="source-check">
+                  <span className="source-check-name">{name}</span>
+                  <span className={ok ? "source-check-status" : "source-check-status source-check-silent"}>
+                    {ok ? "✓ respondió" : "— no respondió"}
+                  </span>
+                  {ok && silent > 0 && (
+                    <span className="source-check-note">
+                      ({silent === 1 ? "una consulta no respondió" : `${silent} consultas no respondieron`})
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <details className="route-details">
+          <summary>Ver ruta de la investigación</summary>
+          <InvestigationTimeline sources={caseFile.sources_consulted} />
+        </details>
       </section>
 
       <section className="case-section unknowns">
