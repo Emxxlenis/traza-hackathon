@@ -56,9 +56,7 @@ export default function App() {
       <TestDataBanner />
       <header className="app-header">
         <h1 className="app-title">TRAZA</h1>
-        <p className="app-tagline">
-          Expedientes de investigación sobre contratación pública, con la evidencia a la vista.
-        </p>
+        <p className="app-tagline">Tú traes la pregunta. TRAZA hace la investigación.</p>
       </header>
 
       <main className="app-main">
