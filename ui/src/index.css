@@ -1327,6 +1327,31 @@ button {
   margin-top: 2.25rem;
 }
 
+/* Acciones del expediente: "Nueva investigación" + "Descargar informe (PDF)".
+   En pantalla son botones normales; en print desaparece el bloque entero. */
+.case-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.btn-with-icon svg {
+  flex-shrink: 0;
+}
+
+/* Membrete y pie del informe impreso: solo existen en papel. */
+.print-header,
+.print-footer {
+  display: none;
+}
+
 /* ---- Tacto móvil: todos los <summary> plegables del expediente con área
    táctil cómoda (~44px: padding vertical 0.7rem + línea de ~22px).
    .finding-summary ya supera 44px con su propio padding y se excluye. */
@@ -1334,5 +1359,260 @@ button {
   .case-file summary:not(.finding-summary) {
     padding-top: 0.7rem;
     padding-bottom: 0.7rem;
+  }
+}
+
+/* ======================================================================
+   PLANTILLA DE IMPRESIÓN — "Descargar informe (PDF)"
+   El informe es esta misma página en papel: sobria, blanco y negro digno,
+   tipografía del sistema. printCaseFile() abre todos los <details> antes
+   de imprimir, así el papel contiene el expediente completo (leyenda,
+   capas de auditoría, detalle técnico, ruta de la investigación).
+   ====================================================================== */
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  /* Paleta documental: los tokens pasan a blanco/negro/grises. Todo lo que
+     en pantalla es color (azul cívico, verde HECHO, ámbar aviso) se vuelve
+     tinta; las sombras desaparecen; los radios se acercan al documento. */
+  :root {
+    --paper: #ffffff;
+    --card: #ffffff;
+    --ink: #000000;
+    --ink-soft: #404040;
+    --line: #b3b3b3;
+    --line-strong: #8a8a8a;
+    --well: #ffffff;
+    --accent: #000000;
+    --accent-ink: #000000;
+    --accent-soft: #ffffff;
+    --accent-border: #8a8a8a;
+    --fact-bg: #000000; /* como color de TEXTO en estados "respondió" */
+    --fact-ink: #ffffff;
+    --infer-bg: #ffffff;
+    --infer-ink: #000000;
+    --notice-bg: #ffffff;
+    --notice-border: #8a8a8a;
+    --notice-ink: #000000;
+    --banner-bg: #ffffff;
+    --banner-ink: #000000;
+    --radius-card: 4px;
+    --radius-inner: 3px;
+    --shadow-card: none;
+    --shadow-raised: none;
+  }
+
+  /* Cuerpo legible en papel: ~11pt; el resto de la escala (rem) hereda.
+     Tipografía del sistema: en papel no se carga la webfont. */
+  html {
+    font-size: 11pt;
+  }
+
+  body {
+    background: #ffffff;
+    color: #000000;
+    font-size: 11pt;
+    line-height: 1.5;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+      sans-serif;
+  }
+
+  /* El contenedor flex de pantalla estorba a la paginación. */
+  .app {
+    display: block;
+    min-height: 0;
+  }
+
+  .app-main {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* OCULTO en papel: banner de datos de prueba, header de la app (lo
+     reemplaza el membrete), footer de la app, botones del expediente,
+     estados de carga y de error. */
+  .test-banner,
+  .app-header,
+  .app-footer,
+  .case-footer,
+  .case-actions,
+  .loading,
+  .live-loading,
+  .error-card {
+    display: none !important;
+  }
+
+  /* La pregunta vive en el membrete: no se repite en el cuerpo. */
+  .case-question-label,
+  .case-question {
+    display: none;
+  }
+
+  /* ---- Membrete del informe ---- */
+  .print-header {
+    display: block;
+    border-bottom: 1.5pt solid #000;
+    padding-bottom: 10pt;
+    margin-bottom: 14pt;
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  .print-wordmark {
+    margin: 0;
+    font-size: 16pt;
+    font-weight: 700;
+    letter-spacing: 0.16em; /* mismo tracking del wordmark del header */
+  }
+
+  .print-doc-type {
+    margin: 1pt 0 0;
+    font-size: 9pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: #404040;
+  }
+
+  .print-question {
+    margin: 9pt 0 0;
+    font-size: 13.5pt;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+    break-after: avoid;
+  }
+
+  .print-meta {
+    margin: 5pt 0 0;
+    font-family: var(--mono);
+    font-size: 8pt;
+    color: #404040;
+  }
+
+  /* ---- Pie del informe ---- */
+  .print-footer {
+    display: block;
+    margin-top: 16pt;
+    border-top: 1pt solid #000;
+    padding-top: 8pt;
+    font-size: 8.5pt;
+    line-height: 1.55;
+    color: #404040;
+    break-inside: avoid; /* nunca una línea huérfana en la página siguiente */
+  }
+
+  /* El trigger "Ver ruta de la investigación" duplica el título de sección
+     de la timeline que sigue abierta debajo: en papel solo estorba. */
+  .route-details > summary {
+    display: none;
+  }
+
+  /* ---- Enlaces: la URL queda impresa junto al texto del link; en el PDF
+     digital el link sigue siendo clicable. ---- */
+  .case-file a {
+    color: #000;
+    text-decoration: underline;
+  }
+
+  .case-file a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    font-weight: 400;
+    color: #555;
+    word-break: break-all;
+  }
+
+  /* nowrap de pantalla fuera: la URL impresa necesita poder quebrar. */
+  .source-link {
+    white-space: normal;
+  }
+
+  /* ---- <details> abiertos como texto corrido: sin flechas de plegado,
+     sin fondos de capa, bordes finos. ---- */
+  .case-file summary {
+    list-style: none;
+    cursor: default;
+  }
+
+  .case-file summary::marker {
+    content: "";
+  }
+
+  .case-file summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .finding-summary::before {
+    content: none;
+  }
+
+  /* ---- Chips HECHO / INFERENCIA en b/n: borde + texto, nunca solo color.
+     HECHO borde continuo; INFERENCIA borde discontinuo. ---- */
+  .badge {
+    background: #fff !important;
+    color: #000 !important;
+    border: 1.2pt solid #000;
+    padding: 0.18rem 0.6rem;
+  }
+
+  .badge-derived {
+    border-style: dashed;
+  }
+
+  /* ---- Cortes de página ---- */
+  .section-title {
+    break-after: avoid;
+  }
+
+  .finding-summary {
+    break-after: avoid;
+  }
+
+  /* Cada evidencia y cada card de hallazgo enteras en una página (si caben:
+     cuando miden más que la página, el motor corta igualmente). */
+  .evidence,
+  .finding,
+  .entity-chip,
+  .timeline-step,
+  .legend,
+  .plain-summary,
+  .partial-notice,
+  .unknowns,
+  .next-steps {
+    break-inside: avoid;
+  }
+
+  /* ---- Ruta de la investigación: en papel siempre el layout vertical
+     (el de móvil), sin líneas conectoras. ---- */
+  .timeline {
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .timeline-step {
+    flex-direction: row;
+    align-items: flex-start;
+    text-align: left;
+    padding: 0;
+    gap: 0.9rem;
+    width: 100%;
+  }
+
+  .timeline-step + .timeline-step::before,
+  .timeline-step:not(:last-child)::after {
+    display: none;
+  }
+
+  .timeline-info {
+    margin-top: 0.1rem;
+  }
+
+  .timeline-meta {
+    white-space: normal;
   }
 }

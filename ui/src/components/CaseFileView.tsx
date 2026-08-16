@@ -1,6 +1,7 @@
-import { Info } from "lucide-react";
+import { FileDown, Info } from "lucide-react";
 import type { CaseFile, SourceConsulted } from "../types/caseFile";
 import { plainSummary, sourceLabel } from "../lib/plainLanguage";
+import { printCaseFile } from "../lib/print";
 import { EvidenceItem } from "./EvidenceItem";
 import { InvestigationTimeline } from "./InvestigationTimeline";
 
@@ -74,8 +75,24 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
   const summary = plainSummary(caseFile);
   const showCaveat = hasConcentrationClaim(caseFile);
   const institutions = uniqueInstitutions(caseFile.sources_consulted);
+  // Fecha de generación del INFORME (presentación): se calcula al renderizar.
+  // Las fechas probatorias son las de las fuentes consultadas, en el cuerpo.
+  const generatedAt = new Date().toLocaleString("es-CO", {
+    dateStyle: "long",
+    timeStyle: "short",
+  });
   return (
     <article className="case-file">
+      {/* Membrete solo-impresión: reemplaza al header de la app en el papel. */}
+      <div className="print-header">
+        <p className="print-wordmark">TRAZA</p>
+        <p className="print-doc-type">Expediente de investigación</p>
+        <p className="print-question">{caseFile.question}</p>
+        <p className="print-meta">
+          Generado el {generatedAt} · {window.location.origin}
+        </p>
+      </div>
+
       <header className="case-header">
         <p className="case-question-label">Pregunta investigada</p>
         <h2 className="case-question">{caseFile.question}</h2>
@@ -215,11 +232,23 @@ export function CaseFileView({ caseFile, onNewInvestigation }: CaseFileViewProps
         )}
       </section>
 
-      <footer className="case-footer">
+      <footer className="case-footer case-actions">
         <button type="button" className="btn-primary" onClick={onNewInvestigation}>
           Nueva investigación
         </button>
+        <button type="button" className="btn-secondary btn-with-icon" onClick={printCaseFile}>
+          <FileDown size={16} aria-hidden="true" />
+          Descargar informe (PDF)
+        </button>
       </footer>
+
+      {/* Pie solo-impresión: sustento documental del informe. */}
+      <p className="print-footer">
+        Este informe fue generado automáticamente por TRAZA a partir de fuentes oficiales del
+        Estado colombiano consultadas vía Croma. Cada hallazgo conserva su fuente verificable; los
+        documentos originales de cada contrato están disponibles en los enlaces oficiales de SECOP
+        incluidos en este informe. TRAZA no emite veredictos ni puntajes de riesgo.
+      </p>
     </article>
   );
 }
