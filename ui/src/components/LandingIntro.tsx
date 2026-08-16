@@ -4,18 +4,23 @@
 // no "mejorar" redacción. Cada literal vive en una sola línea a propósito
 // para que un diff textual contra el brief sea trivial.
 
-// Educación del espacio de preguntas: título pequeño + 5 preguntas verbatim
-// del brief, ANTES de "¿Cómo funciona?". Solo enseñan el rango de lo posible;
-// no cargan el textarea (eso lo hacen los intents del cuadro de pregunta).
+// Educación del espacio de preguntas: título pequeño + preguntas reales,
+// ANTES de "¿Cómo funciona?". Solo enseñan el rango de lo posible; no cargan
+// el textarea (eso lo hacen los intents del cuadro de pregunta).
+// Las dos preguntas EJECUTADAS de punta a punta contra producción (caso demo,
+// NIT 901145160): la 1ª se corrió 5 veces con ruta y números idénticos; la 2ª
+// activa la ruta exhaustiva y suele cerrar `partial` declarando el límite
+// operacional — juntas muestran que el wording controla la profundidad.
+// No agregar preguntas no ensayadas, y no repetir aquí las de INTENTS
+// (QuestionInput) — quedan duplicadas literales en la misma pantalla.
 const ASK_EXAMPLES_TITLE = "Puedes preguntar cosas como:";
 
 const ASK_EXAMPLES = [
-  "¿Cuántos contratos ha recibido esta empresa?",
-  "¿Con qué entidades concentra su contratación?",
-  "¿Quién aparece como representante legal?",
-  "¿Hay antecedentes registrados?",
-  "¿Qué relación hay entre esta empresa y esta entidad pública?",
+  "¿Por qué la empresa con NIT 901145160 concentra sus contratos públicos en el Distrito de Cali? Investiga y documenta.",
+  "Investiga a fondo a la empresa con NIT 901145160 en la contratación pública colombiana: quiero un expediente completo, incluyendo cualquier antecedente relevante que encuentres.",
 ] as const;
+
+const ASK_EXAMPLES_NOTE = "Las dos son sobre la misma empresa de ejemplo y las dos funcionan: la primera responde una pregunta puntual, la segunda pide todo lo que se pueda encontrar. Copia cualquiera y cámbiale el NIT — o escribe el nombre de la empresa que te interese.";
 
 const HOW_TITLE = "¿Cómo funciona?";
 
@@ -57,6 +62,7 @@ export function LandingIntro() {
             <li key={question}>{question}</li>
           ))}
         </ul>
+        <p className="ask-examples-note">{ASK_EXAMPLES_NOTE}</p>
       </div>
 
       <h2 className="how-title">{HOW_TITLE}</h2>

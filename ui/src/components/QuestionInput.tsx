@@ -7,10 +7,14 @@ import { LandingIntro } from "./LandingIntro";
 // COPY CONGELADO: estas cadenas son verbatim del brief — no reformular,
 // no "mejorar" redacción. Cada literal vive en una sola línea a propósito
 // para que un diff textual contra el brief sea trivial.
+// Excepción: INVITE_EXPLAINER se agregó después del brief (a pedido) para que
+// se entienda qué hace TRAZA sin leer la documentación de abajo.
 
 const INVITE_HEADING = "¿Hay algo sobre una empresa o sus contratos públicos que quieras entender?";
 
 const INVITE_SUB = "No necesitas saber dónde buscar. Puedes escribir el nombre de la empresa, su NIT o simplemente contarlo con tus palabras.";
+
+const INVITE_EXPLAINER = "TRAZA va a los registros oficiales del Estado y busca por ti: quién es la empresa, qué contratos públicos ha recibido, de qué entidades y por cuánta plata. Con eso arma un informe donde cada dato dice de dónde salió, con el enlace para que lo compruebes tú mismo.";
 
 const TEXTAREA_LABEL = "Pregunta de investigación";
 
@@ -78,6 +82,7 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
     <section className="ask">
       <h2 className="ask-heading">{INVITE_HEADING}</h2>
       <p className="ask-sub">{INVITE_SUB}</p>
+      <p className="ask-explainer">{INVITE_EXPLAINER}</p>
 
       <form
         onSubmit={(e) => {
