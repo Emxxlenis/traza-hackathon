@@ -1,57 +1,54 @@
-import { FileSearch, Scale, Users } from "lucide-react";
-
-// Contenido estático de la landing, ARRIBA del cuadro de pregunta.
+// Documentación compacta de la landing, DEBAJO del cuadro de pregunta:
+// el producto va primero, el manual después (queda bajo el fold a propósito).
 // COPY CONGELADO: estas cadenas son verbatim del brief — no reformular,
 // no "mejorar" redacción. Cada literal vive en una sola línea a propósito
 // para que un diff textual contra el brief sea trivial.
 
-const GOAL =
-  "TRAZA busca en fuentes oficiales del Estado colombiano y te muestra la evidencia, con la fuente exacta de cada dato — sin emitir veredictos.";
+const HOW_TITLE = "¿Cómo funciona?";
 
-const CARDS = [
+const STEPS = [
   {
-    Icon: Users,
-    title: "¿Para quién es esto?",
-    text: "Periodistas, veedurías ciudadanas, investigadores independientes, y cualquier persona con una pregunta sobre contratación pública en Colombia.",
+    title: "1. Haz una pregunta",
+    text: "No necesitas saber dónde buscar.",
   },
   {
-    Icon: FileSearch,
-    title: "¿Qué puede investigar?",
-    text: "Empresas colombianas registradas en RUES: sus contratos públicos (SECOP), antecedentes disciplinarios (Procuraduría) y fiscales (Contraloría).",
+    title: "2. TRAZA investiga",
+    text: "Consulta fuentes oficiales del Estado colombiano y conecta la información relevante.",
   },
   {
-    Icon: Scale,
-    title: "¿Qué NO hace?",
-    text: "No determina si algo es corrupto ni asigna puntajes de riesgo. Muestra hechos con su fuente y separa lo que la evidencia sí permite concluir de lo que no.",
+    title: "3. Revisa la evidencia",
+    text: "Cada hallazgo muestra la fuente exacta de donde salió.",
   },
 ] as const;
+
+const SCOPE_LINE = "TRAZA no decide quién es culpable. Te ayuda a entender qué dicen los datos oficiales — y cada hallazgo incluye la fuente que puedes revisar.";
 
 const NOTES_SUMMARY = "¿Qué debo tener en cuenta antes de investigar?";
 
+// El punto de los tiempos ("Puede tardar entre 15 segundos y 2 minutos…")
+// se mudó al estado de carga en App.tsx — no lo re-agregues aquí.
 const NOTES = [
   "Los datos vienen de fuentes públicas oficiales vía Croma, no de internet en general.",
   "La forma en que escribas la pregunta cambia qué tan a fondo investiga el agente — entre más específica, mejor.",
-  "Puede tardar entre 15 segundos y 2 minutos según la complejidad.",
   "Si una empresa aparece «sin resultados», no significa que no exista — puede que la fuente no tenga registro, y el expediente lo va a explicar.",
 ] as const;
 
-/** Intro de la landing: objetivo, audiencia/alcance/límites y advertencias. */
+/** Documentación de la landing: cómo funciona (3 pasos), alcance y advertencias. */
 export function LandingIntro() {
   return (
     <div className="landing-intro">
-      <p className="landing-goal">{GOAL}</p>
+      <h2 className="how-title">{HOW_TITLE}</h2>
 
-      <div className="landing-cards">
-        {CARDS.map(({ Icon, title, text }) => (
-          <article key={title} className="landing-card">
-            <h3 className="landing-card-title">
-              <Icon size={17} aria-hidden="true" />
-              {title}
-            </h3>
-            <p className="landing-card-text">{text}</p>
+      <div className="how-steps">
+        {STEPS.map(({ title, text }) => (
+          <article key={title} className="how-step">
+            <h3 className="how-step-title">{title}</h3>
+            <p className="how-step-text">{text}</p>
           </article>
         ))}
       </div>
+
+      <p className="landing-scope">{SCOPE_LINE}</p>
 
       {/* Mismo patrón visual que la leyenda del expediente (.legend) */}
       <details className="legend landing-legend">

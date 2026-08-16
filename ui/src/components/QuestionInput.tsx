@@ -2,29 +2,66 @@ import { useState } from "react";
 import { USE_MOCK } from "../api/client";
 import { LandingIntro } from "./LandingIntro";
 
-// En modo real los ejemplos son preguntas reales y útiles (empresas con datos
-// públicos verificados); las ficticias solo existen en modo mock/fixtures.
-const EXAMPLE_QUESTIONS = USE_MOCK
+// COPY CONGELADO: estas cadenas son verbatim del brief — no reformular,
+// no "mejorar" redacción. Cada literal vive en una sola línea a propósito
+// para que un diff textual contra el brief sea trivial.
+
+const INVITE_HEADING = "¿Hay algo sobre una empresa o sus contratos públicos que quieras entender?";
+
+const INVITE_SUB = "No necesitas saber dónde buscar. Puedes escribir el nombre de la empresa, su NIT o simplemente contarlo con tus palabras.";
+
+const TEXTAREA_LABEL = "Pregunta de investigación";
+
+const TEXTAREA_PLACEHOLDER = "Ej.: Quiero saber por qué esta empresa recibe tantos contratos del Distrito de Cali.";
+
+const INTENTS_TITLE = "¿No sabes por dónde empezar?";
+
+// En modo real los intents cargan preguntas reales y útiles (empresa con datos
+// públicos verificados); las ficticias solo existen en modo mock/fixtures y
+// conservan los ejemplos actuales con esta misma presentación.
+const INTENTS = USE_MOCK
   ? [
-      "¿Por qué Empresa Ejemplo S.A.S. concentra tantos contratos con la Entidad Ficticia de Ejemplo?",
-      "¿Qué contratos públicos tiene Distribuidora Andina?",
-      "¿Cómo ha crecido el valor contratado por Empresa Ejemplo S.A.S. desde 2022?",
+      {
+        emoji: "🏢",
+        title: "Investigar una empresa",
+        question: "¿Qué contratos públicos tiene Distribuidora Andina?",
+      },
+      {
+        emoji: "💰",
+        title: "Entender sus contratos",
+        question:
+          "¿Por qué Empresa Ejemplo S.A.S. concentra tantos contratos con la Entidad Ficticia de Ejemplo?",
+      },
+      {
+        emoji: "👤",
+        title: "Seguir una relación",
+        question: "¿Cómo ha crecido el valor contratado por Empresa Ejemplo S.A.S. desde 2022?",
+      },
     ]
   : [
-      "¿Por qué la empresa con NIT 901145160 concentra sus contratos públicos en el Distrito de Cali? Investiga y documenta.",
-      "¿Qué contratos públicos tiene la empresa con NIT 899999068 y en qué entidades se concentran?",
-      "Investiga la contratación pública de la empresa Distribuidora Andina",
+      {
+        emoji: "🏢",
+        title: "Investigar una empresa",
+        question: "¿Qué contratos públicos ha recibido la empresa con NIT 901145160?",
+      },
+      {
+        emoji: "💰",
+        title: "Entender sus contratos",
+        question: "¿En qué entidades se concentra la contratación de la empresa con NIT 901145160? Investiga y documenta.",
+      },
+      {
+        emoji: "👤",
+        title: "Seguir una relación",
+        question: "¿Quién aparece como representante legal de la empresa con NIT 901145160 y qué antecedentes públicos tiene?",
+      },
     ];
-
-const EXAMPLES_LABEL = USE_MOCK
-  ? "Ejemplos (con entidades ficticias):"
-  : "Ejemplos — haz clic para cargar la pregunta y revísala antes de investigar:";
 
 interface QuestionInputProps {
   onSubmit: (question: string) => void;
 }
 
-/** Screen (a): natural-language question input with clickable examples. */
+/** Screen (a): el producto primero (invitación + textarea + intents);
+ * la documentación compacta va DEBAJO del fold, en LandingIntro. */
 export function QuestionInput({ onSubmit }: QuestionInputProps) {
   const [question, setQuestion] = useState("");
   const trimmed = question.trim();
@@ -37,13 +74,8 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
 
   return (
     <section className="ask">
-      <LandingIntro />
-
-      <h2 className="ask-heading">Convierte una pregunta en un expediente de investigación</h2>
-      <p className="ask-sub">
-        Escribe una pregunta sobre una empresa colombiana y contratación pública. TRAZA consulta
-        fuentes oficiales y arma un expediente con la evidencia de cada hallazgo.
-      </p>
+      <h2 className="ask-heading">{INVITE_HEADING}</h2>
+      <p className="ask-sub">{INVITE_SUB}</p>
 
       <form
         onSubmit={(e) => {
@@ -51,7 +83,11 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
           submit();
         }}
       >
+        <label htmlFor="question-input" className="sr-only">
+          {TEXTAREA_LABEL}
+        </label>
         <textarea
+          id="question-input"
           className="ask-textarea"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
@@ -61,7 +97,7 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
               submit();
             }
           }}
-          placeholder="¿Qué quieres investigar?"
+          placeholder={TEXTAREA_PLACEHOLDER}
           rows={4}
           maxLength={1000}
           autoFocus
@@ -74,24 +110,34 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
         </div>
       </form>
 
-      <div className="examples">
-        <p className="examples-label">{EXAMPLES_LABEL}</p>
-        <ul className="examples-list">
-          {EXAMPLE_QUESTIONS.map((example) => (
-            <li key={example}>
+      <div className="intents">
+        <p className="intents-title">{INTENTS_TITLE}</p>
+        <ul className="intent-list">
+          {INTENTS.map(({ emoji, title, question: intentQuestion }) => (
+            <li key={title}>
               {/* Carga la pregunta en el textarea, NUNCA dispara la investigación:
                   cada investigación real consume cupo de rate limit y tokens. */}
               <button
                 type="button"
-                className="example-chip"
-                onClick={() => setQuestion(example)}
+                className="intent-chip"
+                onClick={() => setQuestion(intentQuestion)}
               >
-                {example}
+                <span className="intent-emoji" aria-hidden="true">
+                  {emoji}
+                </span>
+                <span className="intent-body">
+                  <span className="intent-title">{title}</span>
+                  <span className="intent-question">{intentQuestion}</span>
+                </span>
               </button>
             </li>
           ))}
         </ul>
       </div>
+
+      <hr className="landing-separator" />
+
+      <LandingIntro />
     </section>
   );
 }

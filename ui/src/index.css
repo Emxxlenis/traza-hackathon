@@ -78,6 +78,20 @@ button {
   outline-offset: 2px;
 }
 
+/* Visually hidden but available to screen readers (labels, announcements). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .app {
   min-height: 100vh;
   display: flex;
@@ -135,56 +149,58 @@ button {
   padding: 1.1rem 1.25rem 1.6rem;
 }
 
-/* ---- Landing intro: static copy ABOVE the question box ----
-   Compact on purpose (short cards, ~0.9rem type) so the textarea stays inside
-   the first viewport at 1280×800. Only existing token pairs are used:
+/* ---- Landing docs: compact copy BELOW the question box ----
+   The product goes first: invitation + textarea + intents live in the first
+   viewport (1280×800 desktop, ~700px on 375 mobile); this documentation sits
+   under the fold on purpose. Only existing token pairs are used:
    ink/card 15.17:1, ink-soft/card 7.63:1, accent-ink/card 8.72:1 — all AA. */
-.landing-goal {
-  font-size: 0.98rem;
-  line-height: 1.55;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--accent);
-  border-radius: 6px var(--radius-card) var(--radius-card) 6px;
-  box-shadow: var(--shadow-card);
-  padding: 0.85rem 1.1rem;
-  margin: 0.5rem 0 0;
+.landing-separator {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 2.25rem 0 1.75rem;
 }
 
-.landing-cards {
+.how-title {
+  margin: 0 0 0.8rem;
+  font-size: 1.1rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
+
+.how-steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.7rem;
-  margin-top: 0.9rem;
 }
 
-.landing-card {
+.how-step {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
-  padding: 0.8rem 0.95rem;
+  padding: 0.75rem 0.9rem;
 }
 
-.landing-card-title {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0 0 0.35rem;
+.how-step-title {
+  margin: 0 0 0.25rem;
   font-size: 0.9rem;
   font-weight: 650;
   letter-spacing: -0.005em;
   color: var(--accent-ink);
 }
 
-.landing-card-title svg {
-  flex-shrink: 0;
-}
-
-.landing-card-text {
+.how-step-text {
   margin: 0;
   font-size: 0.85rem;
   line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* Sober one-liner: scope without verdicts — plain text, no alert styling. */
+.landing-scope {
+  margin: 0.9rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
   color: var(--ink-soft);
 }
 
@@ -205,21 +221,26 @@ button {
 }
 
 @media (max-width: 640px) {
-  .landing-cards {
+  .how-steps {
     grid-template-columns: 1fr;
   }
 }
 
-/* ---- Screen (a): question input ---- */
+/* ---- Screen (a): question input ----
+   Human invitation first; tight margins keep the textarea inside the first
+   viewport at 1280×800 and within the first ~700px on 375-wide mobile. */
 .ask-heading {
-  margin: 1rem 0 0.3rem;
-  font-size: 1.3rem;
+  margin: 0.5rem 0 0.4rem;
+  font-size: 1.35rem;
+  line-height: 1.3;
   font-weight: 650;
   letter-spacing: -0.01em;
 }
 
 .ask-sub {
-  margin: 0 0 1.4rem;
+  margin: 0 0 1.1rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
   color: var(--ink-soft);
 }
 
@@ -288,41 +309,80 @@ button {
   border-color: var(--accent);
 }
 
-.examples {
-  margin-top: 2.25rem;
+/* ---- Intents: guided starting points below the textarea ----
+   Same contract as the old example chips: click LOADS the textarea, never
+   fires the investigation. Hover changes border + shadow (not color alone);
+   keyboard focus uses the global :focus-visible outline. */
+.intents {
+  margin-top: 2rem;
 }
 
-.examples-label {
+.intents-title {
   color: var(--ink-soft);
   font-size: 0.85rem;
-  margin-bottom: 0.6rem;
+  margin: 0 0 0.6rem;
 }
 
-.examples-list {
+.intent-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
 }
 
-.example-chip {
+.intent-chip {
   width: 100%;
+  height: 100%;
   text-align: left;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-inner);
-  padding: 0.85rem 1.1rem;
+  padding: 0.8rem 0.95rem;
   color: var(--ink);
   box-shadow: var(--shadow-card);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.example-chip:hover {
+.intent-chip:hover {
   border-color: var(--accent);
-  color: var(--accent-ink);
   box-shadow: var(--shadow-raised);
+}
+
+.intent-emoji {
+  font-size: 1.15rem;
+  line-height: 1.45;
+  flex-shrink: 0;
+}
+
+.intent-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.intent-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--accent-ink);
+}
+
+.intent-question {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 640px) {
+  .intent-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ---- Loading / error ---- */
@@ -348,6 +408,11 @@ button {
 
 .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
 .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+.loading-time {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+}
 
 @keyframes pulse {
   0%, 100% { opacity: 0.25; transform: scale(0.8); }

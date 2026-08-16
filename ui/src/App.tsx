@@ -77,11 +77,13 @@ export default function App() {
         {view.screen === "ask" && <QuestionInput onSubmit={runInvestigation} />}
 
         {view.screen === "loading" && (
-          <div className="loading" role="status">
+          <div className="loading" role="status" aria-live="polite">
             <div className="loading-dots" aria-hidden="true">
               <span /><span /><span />
             </div>
             <p>{view.message}</p>
+            {/* COPY CONGELADO (verbatim del brief): línea de expectativa de tiempo. */}
+            <p className="loading-time">Investigación en curso · normalmente tarda menos de 2 minutos.</p>
           </div>
         )}
 
