@@ -1,5 +1,6 @@
 import type { CaseFile } from "../types/caseFile";
 import { buildResolvedCase, completeCase, disambiguationCase } from "../fixtures";
+import { SessionRequiredError } from "./auth";
 
 /**
  * Backend contract for the UI. Components depend ONLY on this interface —
@@ -69,6 +70,17 @@ interface InvestigateRequestBody {
   candidate_id?: string;
 }
 
+/** Lee el {detail} legible del backend; cae a un texto genérico si no lo hay. */
+async function readDetail(res: Response): Promise<string> {
+  try {
+    const detail = ((await res.json()) as { detail?: string }).detail;
+    if (detail) return detail;
+  } catch {
+    /* cuerpo no-JSON */
+  }
+  return "Necesitas iniciar sesión para investigar.";
+}
+
 async function postInvestigate(body: InvestigateRequestBody): Promise<CaseFile> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -76,9 +88,14 @@ async function postInvestigate(body: InvestigateRequestBody): Promise<CaseFile> 
     const res = await fetch(`${API_URL}/investigate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      // Manda la cookie de sesión: /investigate exige cuenta.
+      credentials: "include",
       body: JSON.stringify(body),
       signal: controller.signal,
     });
+    if (res.status === 401) {
+      throw new SessionRequiredError(await readDetail(res));
+    }
     if (!res.ok) {
       // El backend responde {detail} legible (p. ej. límite de investigaciones por hora).
       let detail = "";
@@ -210,6 +227,7 @@ export async function investigateStream(
     res = await fetch(`${API_URL}/investigate/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -223,8 +241,13 @@ export async function investigateStream(
   }
 
   try {
-    // CUALQUIER estado no-ok (404 sin endpoint, 429, 5xx de proxy...) cae al
-    // POST clásico, que ya sabe producir el mensaje legible correspondiente.
+    // Sesión vencida o ausente: reintentar por el POST clásico daría el mismo
+    // 401, así que se corta aquí y la app manda a iniciar sesión.
+    if (res.status === 401) {
+      throw new SessionRequiredError(await readDetail(res));
+    }
+    // CUALQUIER otro estado no-ok (404 sin endpoint, 429, 5xx de proxy...) cae
+    // al POST clásico, que ya sabe producir el mensaje legible correspondiente.
     if (!res.ok || !res.body) {
       throw new StreamFallbackError(`El backend de streaming respondió HTTP ${res.status}`);
     }

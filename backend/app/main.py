@@ -3,6 +3,7 @@ import contextlib
 import json
 import logging
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -15,18 +16,42 @@ from pydantic import BaseModel, Field, field_validator
 from agent.api import investigate
 from app import ratelimit
 from app.ratelimit import check_rate_limit
+from auth import db as auth_db
+from auth.api import require_user
+from auth.api import router as auth_router
 
 logger = logging.getLogger("traza.app")
 
-app = FastAPI(title="TRAZA", version="0.1.0")
 
-# Dev: la UI de Vite corre en 5173. Producción real queda como roadmap (spec §2).
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Prepara la base de cuentas al arrancar y suelta el pool al terminar."""
+    auth_db.check_production_storage()
+    await auth_db.init_db()
+    if not auth_db.is_persistent():
+        logger.warning(
+            "Cuentas en SQLite (%s): en un contenedor efímero se pierden al redesplegar. "
+            "Producción debe definir DATABASE_URL apuntando a Postgres.",
+            auth_db.database_url(),
+        )
+    yield
+    await auth_db.dispose_engine()
+
+
+app = FastAPI(title="TRAZA", version="0.1.0", lifespan=lifespan)
+
+# Dev: la UI de Vite corre en 5173. Producción es single-origin (misma URL),
+# así que no necesita CORS. allow_credentials es obligatorio para que el
+# navegador mande la cookie de sesión en el flujo de desarrollo.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
 
 
 class InvestigateRequest(BaseModel):
@@ -51,10 +76,17 @@ async def health() -> dict:
         "status": "ok",
         "rate_limit_per_ip_hour": ratelimit.PER_IP_PER_HOUR,
         "rate_limit_global_hour": ratelimit.GLOBAL_PER_HOUR,
+        "auth_required": True,
+        # False = las cuentas están en SQLite y no sobreviven un redeploy.
+        # Verificable desde afuera, sin exponer la URL de la base.
+        "accounts_persistent": auth_db.is_persistent(),
     }
 
 
-@app.post("/investigate", dependencies=[Depends(check_rate_limit)])
+# require_user va ANTES del rate limit a propósito: un request sin sesión debe
+# salir con 401 sin gastar cupo de la hora (si no, cualquiera podría agotar la
+# cuota global de la instancia sin siquiera tener cuenta).
+@app.post("/investigate", dependencies=[Depends(require_user), Depends(check_rate_limit)])
 async def investigate_route(req: InvestigateRequest) -> dict:
     """Corre la investigación y devuelve el expediente según el contrato v0.1.
 
@@ -87,7 +119,10 @@ def _ndjson_line(event: dict[str, Any]) -> str:
     return json.dumps(event, ensure_ascii=False, default=str) + "\n"
 
 
-@app.post("/investigate/stream", dependencies=[Depends(check_rate_limit)])
+@app.post(
+    "/investigate/stream",
+    dependencies=[Depends(require_user), Depends(check_rate_limit)],
+)
 async def investigate_stream_route(req: InvestigateRequest) -> StreamingResponse:
     """Igual que /investigate pero emitiendo progreso EN VIVO como NDJSON.
 

@@ -22,3 +22,11 @@ services:
         value: "25"
       - key: RATE_LIMIT_GLOBAL_HOUR
         value: "200"
+      # Intentos de registro/login por IP y por hora (freno de fuerza bruta).
+      - key: AUTH_ATTEMPTS_PER_IP_HOUR
+        value: "20"
+      # Cuentas. OBLIGATORIA en producción: el disco de Render free es efímero,
+      # así que sin Postgres las cuentas se borran en cada redeploy y en cada
+      # arranque tras el spin-down. Verificable en /health → accounts_persistent.
+      - key: DATABASE_URL
+        sync: false

@@ -260,7 +260,7 @@ TRAZA está desplegado y funcional.
 
 Implementación verificada actual:
 
-- 142 tests automatizados
+- 161 tests automatizados
 - 4 fuentes oficiales del Estado colombiano
 - 8 consultas máximas por investigación
 - 10 entidades máximas
@@ -269,6 +269,7 @@ Implementación verificada actual:
 - Desambiguación de entidades
 - Cálculos de evidencia deterministas
 - Verificación de la evidencia derivada
+- Cuentas de usuario para investigar (ver abajo)
 - Rate limiting
 - Manejo controlado de fuentes caídas
 - UI compatible con móvil
@@ -281,6 +282,35 @@ Cuando una fuente falla, TRAZA no rellena el vacío en silencio.
 
 Le dice al usuario que la investigación es parcial y explica la limitación.
 
+## Cuentas
+
+Investigar requiere una cuenta; leer no.
+
+Cada investigación consulta fuentes oficiales y consume tokens de un modelo, así que tiene un
+costo real por pregunta. La cuenta es lo que hace que ese costo sea atribuible en vez de
+anónimo. Lo que no cuesta nada queda abierto:
+
+| Sin cuenta | Con cuenta |
+|---|---|
+| Portada, documentación y expediente de ejemplo | Investigaciones reales contra las 4 fuentes |
+
+El registro es abierto: correo y contraseña, sin invitación. Cómo está hecho:
+
+- Contraseñas con **Argon2id** (m=19 MiB, t=2, p=1 — mínimo recomendado por OWASP).
+- Sesión en **cookie HttpOnly**: el token nunca queda al alcance de JavaScript, así que un XSS
+  no puede robarla. En el servidor se guarda el **hash** del token, no el token.
+- Cerrar sesión **revoca de verdad**: borra la fila, no solo la cookie.
+- Login y registro con límite de intentos por IP (fuerza bruta).
+- Un request sin sesión sale con 401 **sin gastar cupo** del rate limit de investigaciones.
+- El correo no se verifica (no hay servidor de correo): la cuenta acota el uso, no comprueba
+  la identidad de quien se registra.
+
+Las cuentas viven en Postgres, configurado con `DATABASE_URL`. Sin esa variable el backend usa
+SQLite local, que sirve para desarrollar pero **no** para producción: en un contenedor efímero
+(Render free) las cuentas se borrarían en cada redeploy y en cada arranque tras el spin-down.
+`GET /health` publica `accounts_persistent` para verificar desde afuera cuál de los dos está
+activo.
+
 ## Stack técnico
 
 **Backend**
@@ -288,6 +318,7 @@ Le dice al usuario que la investigación es parcial y explica la limitación.
 - Python
 - FastAPI
 - Pydantic
+- SQLAlchemy + Postgres (cuentas)
 - Cliente HTTP para Croma
 - Tool-calling de LLM
 
@@ -317,6 +348,7 @@ traza-hackathon/
 │   ├── agent/           loop, tools, reducers, providers
 │   ├── croma_client/    transporte hacia la API de Croma
 │   ├── evidence/        modelos de evidencia y verificación
+│   ├── auth/            cuentas: modelos, sesiones y endpoints
 │   ├── app/             API HTTP (FastAPI)
 │   └── tests/
 │
@@ -357,6 +389,9 @@ npm run dev
 Configuración vía `.env` en la raíz — ver `.env.example`.
 
 Notas:
+
+- Las cuentas usan SQLite local (`traza-auth.db`, ignorado por git) mientras no definas
+  `DATABASE_URL`. No hace falta instalar Postgres para desarrollar.
 
 - La UI llama al backend en `http://localhost:8000` por defecto; se cambia con `VITE_API_URL`
   (por ejemplo en `ui/.env.local`) si ese puerto está ocupado — correr entonces

@@ -18,10 +18,14 @@ from fastapi import HTTPException, Request
 WINDOW_SECONDS = 3600.0
 PER_IP_PER_HOUR = int(os.environ.get("RATE_LIMIT_PER_IP_HOUR", "10"))
 GLOBAL_PER_HOUR = int(os.environ.get("RATE_LIMIT_GLOBAL_HOUR", "40"))
+# Intentos de registro/login por IP y por hora. Es la defensa contra fuerza
+# bruta de contraseñas: Argon2 encarece cada intento, esto acota cuántos hay.
+AUTH_ATTEMPTS_PER_IP_HOUR = int(os.environ.get("AUTH_ATTEMPTS_PER_IP_HOUR", "20"))
 
 _lock = threading.Lock()
 _per_ip: dict[str, deque[float]] = {}
 _global: deque[float] = deque()
+_auth_per_ip: dict[str, deque[float]] = {}
 
 
 def reset() -> None:
@@ -29,6 +33,7 @@ def reset() -> None:
     with _lock:
         _per_ip.clear()
         _global.clear()
+        _auth_per_ip.clear()
 
 
 def client_ip(request: Request) -> str:
@@ -76,3 +81,25 @@ def check_rate_limit(request: Request) -> None:
             )
         dq.append(now)
         _global.append(now)
+
+
+def check_auth_rate_limit(request: Request) -> None:
+    """Dependency de /auth/register y /auth/login: 429 tras demasiados intentos.
+
+    Cuenta intentos, no éxitos: un atacante probando contraseñas gasta el cupo
+    aunque falle siempre (que es justo el caso que interesa frenar).
+    """
+    now = time.monotonic()
+    ip = client_ip(request)
+    with _lock:
+        dq = _auth_per_ip.setdefault(ip, deque())
+        _prune(dq, now)
+        if len(dq) >= AUTH_ATTEMPTS_PER_IP_HOUR:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Demasiados intentos de inicio de sesión desde esta conexión. "
+                    f"Intenta de nuevo en ~{_minutes_until_slot(dq, now)} min."
+                ),
+            )
+        dq.append(now)

@@ -118,6 +118,40 @@ button {
   margin: 0 auto;
   padding: 2.5rem 1.25rem 0.5rem;
   width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Barra de cuenta: correo + salir, o el botón de entrar. Deliberadamente
+   discreta — el producto es la pregunta, no la sesión. */
+.app-account {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  padding-top: 0.4rem;
+}
+
+.app-account-email {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-account-action {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .app-title {
@@ -575,6 +609,136 @@ button {
   display: flex;
   gap: 0.75rem;
   margin-top: 1.1rem;
+}
+
+/* ---- Cuenta: crear una o entrar ----
+   Aparece solo cuando alguien pide investigar sin sesión. Usa los pares de
+   color existentes (ink/card 15.17:1, ink-soft/card 7.63:1, accent-ink/card
+   8.72:1) y el mismo lenguaje de tarjeta que .error-card. */
+.auth {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 1.75rem;
+  margin-top: 2rem;
+}
+
+.auth-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+  line-height: 1.3;
+}
+
+.auth-sub {
+  margin: 0 0 1.1rem;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+/* La pregunta que quedó pendiente: se muestra para que quede claro que no se
+   perdió al pedir la cuenta. */
+.auth-pending {
+  margin: 0 0 1.2rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-inner);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.auth-pending-label {
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.auth-input {
+  font: inherit;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-inner);
+  background: var(--card);
+  color: var(--ink);
+  margin-bottom: 0.9rem;
+}
+
+.auth-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.auth-hint {
+  margin: -0.6rem 0 0.9rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+/* Error del servidor (correo tomado, credenciales incorrectas, demasiados
+   intentos). notice-ink sobre notice-bg = 8.75:1. */
+.auth-error {
+  margin: 0 0 0.9rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--notice-bg);
+  border: 1px solid var(--notice-border);
+  border-radius: var(--radius-inner);
+  color: var(--notice-ink);
+  font-size: 0.9rem;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.auth-switch {
+  margin: 1.2rem 0 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.auth-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ask-example-link {
+  margin: 1.1rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+/* Expediente de ejemplo: mismo lenguaje visual que el banner de datos de
+   prueba, porque es exactamente eso — datos ficticios. */
+.example-banner {
+  background: var(--banner-bg);
+  color: var(--banner-ink);
+  border: 1px solid var(--notice-border);
+  border-radius: var(--radius-inner);
+  padding: 0.7rem 1rem;
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 /* ---- Screen (b): disambiguation ---- */

@@ -7,6 +7,10 @@ import app.main as app_main
 import app.ratelimit as rl
 from evidence.models import CaseFile
 
+# /investigate exige cuenta; estos tests no son sobre eso (ver conftest.bypass_auth).
+pytestmark = pytest.mark.usefixtures("bypass_auth")
+
+
 
 @pytest.fixture(autouse=True)
 def _clean_state(monkeypatch):

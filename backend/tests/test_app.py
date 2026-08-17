@@ -1,9 +1,14 @@
 """Tests del wiring HTTP: /investigate delega en agent.api y serializa el contrato."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 import app.main as app_main
 from evidence.models import CaseFile
+
+# /investigate exige cuenta; estos tests no son sobre eso (ver conftest.bypass_auth).
+pytestmark = pytest.mark.usefixtures("bypass_auth")
+
 
 
 def _fake_case_file() -> CaseFile:

@@ -16,6 +16,7 @@ import asyncio
 import json
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 import app.main as app_main
@@ -36,6 +37,10 @@ from tests.test_agent_reducers import (
     contracts_payload,
     rues_by_nit_payload,
 )
+
+# /investigate/stream exige cuenta; el sujeto aquí es el NDJSON, no el login
+# (ver conftest.bypass_auth y test_auth.py).
+pytestmark = pytest.mark.usefixtures("bypass_auth")
 
 # ---------------------------------------------------------------------------
 # Capa loop: eventos observables y callback roto

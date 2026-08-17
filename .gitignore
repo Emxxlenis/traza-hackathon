@@ -17,6 +17,11 @@ PROMPT-inicial-claude-code.md
 /data/raw/
 *.raw.json
 
+# Base local de cuentas (SQLite de desarrollo): contiene correos y hashes
+*.db
+*.db-journal
+*.sqlite3
+
 # Node
 node_modules/
 dist/
@@ -46,3 +51,7 @@ venv/
 *.log
 tmp/
 .cache/
+
+# Skills de agente instaladas por `neonctl init` (herramienta local, no del producto)
+.agents/
+skills-lock.json

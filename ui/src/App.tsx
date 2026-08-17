@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import type { CaseFile } from "./types/caseFile";
 import {
@@ -8,9 +8,13 @@ import {
   USE_MOCK,
   type StreamProgressEvent,
 } from "./api/client";
+import type { Account } from "./api/auth";
+import { fetchSession, logout, SessionRequiredError } from "./api/auth";
+import { completeCase } from "./fixtures";
 import { sourceLabel } from "./lib/plainLanguage";
 import { TestDataBanner } from "./components/TestDataBanner";
 import { QuestionInput } from "./components/QuestionInput";
+import { AuthForm } from "./components/AuthForm";
 import { DisambiguationView } from "./components/DisambiguationView";
 import { CaseFileView } from "./components/CaseFileView";
 
@@ -23,6 +27,8 @@ interface LiveStep {
 
 type View =
   | { screen: "ask" }
+  | { screen: "auth"; pendingQuestion?: string }
+  | { screen: "example"; caseFile: CaseFile }
   | { screen: "loading"; message: string }
   | { screen: "live"; question: string; steps: LiveStep[]; assembling: boolean }
   | { screen: "disambiguation"; caseFile: CaseFile }
@@ -59,9 +65,32 @@ function applyProgress(view: View, event: StreamProgressEvent): View {
 
 export default function App() {
   const [view, setView] = useState<View>({ screen: "ask" });
+  // undefined = todavía preguntando al backend; null = sin sesión.
+  const [account, setAccount] = useState<Account | null | undefined>(
+    USE_MOCK ? null : undefined,
+  );
   // Pregunta de la investigación activa: necesaria para reanudar por streaming
   // tras la desambiguación (la vista solo entrega el candidate_id).
   const questionRef = useRef<string | null>(null);
+
+  // En modo mock no hay backend que consultar: el flujo de fixtures sigue
+  // funcionando sin cuenta, como hasta ahora.
+  useEffect(() => {
+    if (USE_MOCK) return;
+    let cancelled = false;
+    fetchSession().then((session) => {
+      if (!cancelled) setAccount(session);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** 401 en cualquier punto: la sesión venció mientras la pestaña estaba abierta. */
+  function handleSessionExpired(question: string) {
+    setAccount(null);
+    setView({ screen: "auth", pendingQuestion: question });
+  }
 
   function showCase(caseFile: CaseFile) {
     if (caseFile.status === "needs_disambiguation") {
@@ -82,6 +111,10 @@ export default function App() {
       .investigate(question)
       .then(showCase)
       .catch((err: unknown) => {
+        if (err instanceof SessionRequiredError) {
+          handleSessionExpired(question);
+          return;
+        }
         setView({
           screen: "error",
           message: friendlyError(
@@ -93,17 +126,33 @@ export default function App() {
       });
   }
 
-  function runInvestigation(question: string) {
+  /** Investiga con una sesión EXPLÍCITA.
+   *
+   * Recibe la cuenta por parámetro y no del estado porque el caso que importa
+   * es justo después de crear la cuenta: `setAccount` no se ve reflejado hasta
+   * el siguiente render, y leer `account` ahí mandaría de vuelta al login.
+   */
+  function runInvestigationAs(session: Account | null, question: string) {
     questionRef.current = question;
     if (USE_MOCK) {
       // En modo mock no hay streaming: el mock actual tal cual.
       runClassicInvestigation(question);
       return;
     }
+    // El gate está aquí y no solo en el backend: pedir la cuenta ANTES de
+    // arrancar evita mandar una investigación que el servidor va a rechazar.
+    if (!session) {
+      setView({ screen: "auth", pendingQuestion: question });
+      return;
+    }
     setView({ screen: "live", question, steps: [], assembling: false });
     investigateStream(question, undefined, handleProgress)
       .then(showCase)
       .catch((err: unknown) => {
+        if (err instanceof SessionRequiredError) {
+          handleSessionExpired(question);
+          return;
+        }
         if (isStreamFallback(err)) {
           // El streaming cayó: mismo resultado por el POST clásico; el usuario
           // solo pierde el progreso en vivo.
@@ -116,9 +165,13 @@ export default function App() {
             err,
             "No pudimos completar la investigación en este momento. Tu pregunta no se perdió: puedes reintentar.",
           ),
-          retry: () => runInvestigation(question),
+          retry: () => runInvestigationAs(session, question),
         });
       });
+  }
+
+  function runInvestigation(question: string) {
+    runInvestigationAs(account ?? null, question);
   }
 
   function runClassicResolve(candidateId: string) {
@@ -148,6 +201,10 @@ export default function App() {
     investigateStream(question, candidateId, handleProgress)
       .then((caseFile) => setView({ screen: "case", caseFile }))
       .catch((err: unknown) => {
+        if (err instanceof SessionRequiredError) {
+          handleSessionExpired(question);
+          return;
+        }
         if (isStreamFallback(err)) {
           runClassicResolve(candidateId);
           return;
@@ -172,12 +229,85 @@ export default function App() {
     <div className="app">
       <TestDataBanner />
       <header className="app-header">
-        <h1 className="app-title">TRAZA</h1>
-        <p className="app-tagline">Tú traes la pregunta. TRAZA hace la investigación.</p>
+        <div className="app-brand">
+          <h1 className="app-title">TRAZA</h1>
+          <p className="app-tagline">Tú traes la pregunta. TRAZA hace la investigación.</p>
+        </div>
+        {/* La barra de cuenta solo aparece con backend real (en mock no hay sesión
+            que mostrar) y solo cuando ya sabemos si hay sesión: dibujar "Entrar"
+            y cambiarlo medio segundo después por el correo se ve como un salto. */}
+        {!USE_MOCK && account !== undefined && (
+          <div className="app-account">
+            {account ? (
+              <>
+                <span className="app-account-email">{account.email}</span>
+                <button
+                  type="button"
+                  className="app-account-action"
+                  onClick={() => {
+                    logout().finally(() => {
+                      setAccount(null);
+                      setView({ screen: "ask" });
+                    });
+                  }}
+                >
+                  Salir
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="app-account-action"
+                onClick={() => setView({ screen: "auth" })}
+              >
+                Iniciar sesión
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
       <main className="app-main">
-        {view.screen === "ask" && <QuestionInput onSubmit={runInvestigation} />}
+        {view.screen === "ask" && (
+          <QuestionInput
+            onSubmit={runInvestigation}
+            onShowExample={() => setView({ screen: "example", caseFile: completeCase })}
+          />
+        )}
+
+        {view.screen === "auth" && (
+          <AuthForm
+            pendingQuestion={view.pendingQuestion}
+            onAuthenticated={(session) => {
+              setAccount(session);
+              // Retoma la pregunta que quedó pendiente: quien ya la escribió no
+              // tiene por qué volver a escribirla después de crear la cuenta.
+              if (view.pendingQuestion) {
+                runInvestigationAs(session, view.pendingQuestion);
+              } else {
+                setView({ screen: "ask" });
+              }
+            }}
+            onCancel={() => setView({ screen: "ask" })}
+          />
+        )}
+
+        {view.screen === "example" && (
+          <>
+            <div className="example-banner" role="status">
+              <strong>EXPEDIENTE DE EJEMPLO</strong>
+              <span>
+                {" "}
+                — empresa y entidad ficticias, para mostrar la estructura del informe. Investigar
+                con datos reales requiere una cuenta.
+              </span>
+            </div>
+            <CaseFileView
+              caseFile={view.caseFile}
+              onNewInvestigation={() => setView({ screen: "ask" })}
+            />
+          </>
+        )}
 
         {/* Fallback (comportamiento de hoy): spinner clásico con sus textos. */}
         {view.screen === "loading" && (

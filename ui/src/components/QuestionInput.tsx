@@ -64,11 +64,13 @@ const INTENTS: { icon: LucideIcon; title: string; question: string }[] = USE_MOC
 
 interface QuestionInputProps {
   onSubmit: (question: string) => void;
+  /** Abre un expediente de ejemplo, sin cuenta y sin consultar fuentes. */
+  onShowExample?: () => void;
 }
 
 /** Screen (a): el producto primero (invitación + textarea + intents);
  * la documentación compacta va DEBAJO del fold, en LandingIntro. */
-export function QuestionInput({ onSubmit }: QuestionInputProps) {
+export function QuestionInput({ onSubmit, onShowExample }: QuestionInputProps) {
   const [question, setQuestion] = useState("");
   const trimmed = question.trim();
 
@@ -116,6 +118,16 @@ export function QuestionInput({ onSubmit }: QuestionInputProps) {
           </button>
         </div>
       </form>
+
+      {onShowExample && (
+        <p className="ask-example-link">
+          ¿Quieres ver cómo se ve el resultado antes de empezar?{" "}
+          <button type="button" className="auth-link" onClick={onShowExample}>
+            Abre un expediente de ejemplo
+          </button>
+          .
+        </p>
+      )}
 
       <div className="intents">
         <p className="intents-title">{INTENTS_TITLE}</p>
